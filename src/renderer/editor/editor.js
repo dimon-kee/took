@@ -1,5 +1,8 @@
 'use strict';
 
+/** Shortcut to the translator the preload exposed. */
+const T = (key, vars) => window.i18n.t(key, vars);
+
 (() => {
   const els = {
     player: document.getElementById('player'),
@@ -117,12 +120,12 @@
   function wireActions() {
     document.getElementById('btn-save').addEventListener('click', async () => {
       const saved = await window.took.save();
-      if (saved) toast('已保存');
+      if (saved) toast(T('editor.saved'));
     });
 
     document.getElementById('btn-copy').addEventListener('click', async () => {
       const ok = await window.took.copy();
-      toast(ok ? '已复制到剪贴板' : '复制失败');
+      toast(T(ok ? 'editor.copied' : 'editor.copyFailed'));
     });
   }
 

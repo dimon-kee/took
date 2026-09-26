@@ -26,7 +26,7 @@ Without go-task installed, `npm start` / `npm run dev` / `npm run dist` work too
 
 ## Start with Windows
 
-Tick "开机自启" in the tray menu, or:
+Tick "Start with Windows" in the tray menu, or:
 
 ```bash
 task autostart:on
@@ -47,7 +47,7 @@ At boot the app goes straight to the tray without opening a window.
 
 Those are the defaults; both can be changed from the tray menu's settings window — see [Settings](#settings).
 
-The app shows no window at all until a hotkey fires. Then the whole screen freezes and a `⋮⋮ 截图 │ 录屏` mode bar floats in at the top; everything disappears once you finish. The bar can be dragged, and it steps out of the way as soon as you pick an annotation tool.
+The app shows no window at all until a hotkey fires. Then the whole screen freezes and a `⋮⋮ Capture │ Record` mode bar floats in at the top; everything disappears once you finish. The bar can be dragged, and it steps out of the way as soon as you pick an annotation tool.
 
 ## Screenshots
 
@@ -99,14 +99,14 @@ The pin in the toolbar turns the region into an always-on-top window that stays 
 
 ## Screen recording
 
-Switching to 录屏 keeps the same region selection. Once a region is set, a setup card appears in the middle of it:
+Switching to Record keeps the same region selection. Once a region is set, a setup card appears in the middle of it:
 
-- **开始录制** — start recording
-- **选择格式** — MP4 or GIF
-- **扬声器** — system audio, captured through desktop loopback
-- **麦克风** — click the icon to toggle, the caret to pick a device
-- **摄像头** — same, and a picture-in-picture bubble appears in the bottom-left of the region
-- **鼠标设置** — the caret holds `鼠标高亮` (cursor highlight) and `增加点击效果` (click ripples)
+- **Start recording**
+- **Format** — MP4 or GIF
+- **System audio** — captured through desktop loopback
+- **Microphone** — click the icon to toggle, the caret to pick a device
+- **Camera** — same, and a picture-in-picture bubble appears in the bottom-left of the region
+- **Cursor** — the caret holds *Highlight the cursor* and *Show click ripples*
 
 Choosing GIF collapses the audio row entirely — a GIF carries no audio track.
 
@@ -114,19 +114,19 @@ Choosing GIF collapses the audio row entirely — a GIF carries no audio track.
 
 The bubble is a separate always-on-top window, not a layer composited into the frame. That is what lets you drag and resize it freely, and it keeps working during the recording because the screen grab picks it up on its own.
 
-Hovering reveals a toolbar: rounded-rectangle or circle shape, and a gear holding `镜像` (mirror), `美颜` (soften) and `背景虚化` (background blur).
+Hovering reveals a toolbar: rounded-rectangle or circle shape, and a gear holding *Mirror*, *Soften* and *Blur background*.
 
-> `背景虚化` uses Chromium's `backgroundBlur` track capability, which needs support from both the camera and the OS. When it cannot be detected the option is greyed out rather than faked in software — doing that properly would mean shipping a multi-megabyte segmentation model. `镜像` and `美颜` always work.
+> *Blur background* uses Chromium's `backgroundBlur` track capability, which needs support from both the camera and the OS. When it cannot be detected the option is greyed out rather than faked in software — doing that properly would mean shipping a multi-megabyte segmentation model. *Mirror* and *Soften* always work.
 
 ### While recording
 
-A control bar sits beside the region: `⋮⋮ ⏸ 00:00:05 / 01:00:00 [结束录制] ✕`
+A control bar sits beside the region: `⋮⋮ ⏸ 00:00:05 / 01:00:00 [Stop] ✕`
 
 Space pauses and resumes, `Enter` finishes, `Esc` discards. One hour is the cap, after which it stops on its own.
 
 ### The editor window
 
-When you stop, an `编辑录屏` window opens: player, scrubber, `下载` (save) and `复制到剪贴板` (copy). The file sits in a temp directory until you decide where it goes.
+When you stop, an *Edit recording* window opens: player, scrubber, *Save* and *Copy to clipboard*. The file sits in a temp directory until you decide where it goes.
 
 Copying an MP4 puts a file reference on the clipboard, which pastes into Explorer and chat apps; a GIF additionally goes on as a bitmap.
 
@@ -143,11 +143,13 @@ Screenshots are always PNG at **native resolution**. On a 1920×1080 screen at 1
 
 ## Settings
 
-Tray menu → 设置…
+Tray menu → Settings…
+
+**Language** — English (the default) or 简体中文. It covers the tray menu, every window and the file dialogs. Windows already open keep their language until they are next opened; the settings window rebuilds itself straight away so you see the change.
 
 **Hotkeys** — click the field and press the combination you want. At least one modifier is required, otherwise that key would be swallowed system-wide. If a combination is already taken by another program the row turns red and **nothing is saved at all** — you never end up with half your hotkeys broken. Each row has a reset link.
 
-**Save location** — where the save dialogs for screenshots and recordings start, and where the tray's "打开保存目录" goes. Defaults to `Pictures/Took/`. A new directory is probe-written before it is accepted, so an unwritable path is rejected on the spot rather than when you try to save a capture.
+**Save location** — where the save dialogs for screenshots and recordings start, and where the tray's "Open save folder" goes. Defaults to `Pictures/Took/`. A new directory is probe-written before it is accepted, so an unwritable path is rejected on the spot rather than when you try to save a capture.
 
 Settings live in `%APPDATA%\Took\settings.json`. A corrupt or missing file falls back to defaults instead of failing to start. If the directory later disappears — external drive unplugged, folder deleted — captures fall back to `Pictures/Took` rather than being lost.
 
@@ -204,6 +206,8 @@ Everything under `tools/` has a matching task:
 | --- | --- | --- |
 | `preview-ui.js` | `task preview` | Renders every overlay state against a synthetic desktop as PNGs. The overlay is fullscreen and always-on-top, so DevTools is not an option — this is how UI changes get checked |
 | `preview-settings.js` | `task preview` | Renders the settings window, including the key-capture and hotkey-clash states |
+| `check-i18n.js` | `task check:i18n` | Both languages define the same keys, every referenced key exists, none are dead, and no user-facing Chinese is left hardcoded |
+| `check-scripts.js` | `task check:scripts` | Several classic scripts share each page's global scope; a top-level redeclaration between them stops the later one loading, and `node --check` cannot see it |
 | `check-settings.js` | `task check:settings` | Exercises the settings store, the save-path fallback and the hotkey conflict rollback |
 | `check-latency.js` | `task check:latency` | Times the hotkey-to-overlay path and confirms the grabbed frame is not blank |
 | `check-capture-speed.js` | `task check:capture-speed` | Breaks down where desktopCapturer spends its time versus a MediaStream frame grab — the evidence for not using it on the hot path |

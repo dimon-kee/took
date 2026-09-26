@@ -1,5 +1,8 @@
 'use strict';
 
+// 语言可用 TOOK_LANG=zh 覆盖，便于比对两种语言的排版。
+const LANG = process.env.TOOK_LANG || 'en';
+
 /**
  * Renders the overlay against a synthetic desktop and writes PNGs of each UI
  * state, so the chrome can be eyeballed without triggering a real capture.
@@ -33,6 +36,7 @@ app.whenReady().then(async () => {
     useContentSize: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'src', 'preload', 'overlay.js'),
+      additionalArguments: [`--took-lang=${LANG}`],
       contextIsolation: true,
       sandbox: false,
     },

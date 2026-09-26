@@ -1,43 +1,49 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; style-src 'self'; script-src 'self'"
     />
-    <title>设置</title>
+    <title data-i18n="app.settings">Took</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <main>
       <section>
-        <h2>快捷键</h2>
-        <p class="hint">点一下输入框，直接按下想要的组合。需要至少一个修饰键。</p>
+        <h2 data-i18n="settings.language"></h2>
+        <p class="hint" data-i18n="settings.languageHint"></p>
+        <div class="row" id="lang-row"></div>
+      </section>
+
+      <section>
+        <h2 data-i18n="settings.hotkeys"></h2>
+        <p class="hint" data-i18n="settings.hotkeysHint"></p>
 
         <div class="row">
-          <label for="hk-capture">截图</label>
+          <label for="hk-capture" data-i18n="settings.capture"></label>
           <button class="hotkey" id="hk-capture" data-key="capture" type="button"></button>
-          <button class="link" data-reset="capture" type="button">恢复默认</button>
+          <button class="link" data-reset="capture" type="button" data-i18n="settings.reset"></button>
         </div>
 
         <div class="row">
-          <label for="hk-record">录屏</label>
+          <label for="hk-record" data-i18n="settings.record"></label>
           <button class="hotkey" id="hk-record" data-key="record" type="button"></button>
-          <button class="link" data-reset="record" type="button">恢复默认</button>
+          <button class="link" data-reset="record" type="button" data-i18n="settings.reset"></button>
         </div>
       </section>
 
       <section>
-        <h2>保存位置</h2>
-        <p class="hint">截图和录屏的「另存为」默认落在这里，托盘的「打开保存目录」也跳这里。</p>
+        <h2 data-i18n="settings.saveLocation"></h2>
+        <p class="hint" data-i18n="settings.saveLocationHint"></p>
 
         <div class="row path-row">
           <input type="text" id="save-dir" spellcheck="false" readonly />
-          <button class="ghost" id="btn-browse" type="button">浏览…</button>
-          <button class="ghost" id="btn-open" type="button">打开</button>
+          <button class="ghost" id="btn-browse" type="button" data-i18n="settings.browse"></button>
+          <button class="ghost" id="btn-open" type="button" data-i18n="settings.open"></button>
         </div>
-        <button class="link" id="btn-reset-dir" type="button">恢复默认（图片 / Took）</button>
+        <button class="link" id="btn-reset-dir" type="button" data-i18n="settings.resetDir"></button>
       </section>
 
       <div id="error" class="error hidden"></div>
@@ -46,8 +52,8 @@
     <footer>
       <span id="status"></span>
       <span class="spacer"></span>
-      <button class="ghost" id="btn-cancel" type="button">取消</button>
-      <button class="primary" id="btn-save" type="button">保存</button>
+      <button class="ghost" id="btn-cancel" type="button" data-i18n="settings.cancel"></button>
+      <button class="primary" id="btn-save" type="button" data-i18n="settings.save"></button>
     </footer>
 
     <script src="settings.js"></script>

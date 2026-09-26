@@ -12,12 +12,15 @@ const { app } = require('electron');
  * cannot lose a setting the user just changed.
  */
 
+const { normalize: normalizeLanguage, DEFAULT_LANGUAGE } = require('../shared/i18n');
+
 const DEFAULTS = {
+  language: DEFAULT_LANGUAGE,
   shortcuts: {
     capture: 'CommandOrControl+Shift+S',
     record: 'CommandOrControl+Shift+R',
   },
-  // null means "wherever defaultSaveDir() lands", i.e. 图片/Took
+  // null means "wherever saveDir() lands", i.e. Pictures/Took
   saveDir: null,
 };
 
@@ -33,6 +36,7 @@ function load() {
   try {
     const raw = JSON.parse(fs.readFileSync(file(), 'utf8'));
     cache = {
+      language: normalizeLanguage(raw.language),
       shortcuts: { ...DEFAULTS.shortcuts, ...(raw.shortcuts || {}) },
       saveDir: typeof raw.saveDir === 'string' && raw.saveDir ? raw.saveDir : null,
     };
@@ -50,6 +54,7 @@ function get() {
 function set(patch) {
   const next = load();
 
+  if (patch.language) next.language = normalizeLanguage(patch.language);
   if (patch.shortcuts) Object.assign(next.shortcuts, patch.shortcuts);
   if ('saveDir' in patch) next.saveDir = patch.saveDir || null;
 

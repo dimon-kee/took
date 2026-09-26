@@ -1,0 +1,296 @@
+'use strict';
+
+/**
+ * UI strings, keyed by area. `{name}` placeholders are filled by the
+ * translator.
+ *
+ * English is the source of truth: a key missing from another language falls
+ * back to it rather than showing the raw key.
+ */
+
+const en = {
+  // window titles
+  'app.overlay': 'Took — Screenshot',
+  'app.pin': 'Took — Pinned',
+  'app.recording': 'Took — Recording',
+  'app.webcam': 'Took — Camera',
+  'app.editor': 'Edit recording',
+  'app.settings': 'Settings',
+  'app.tooltip': 'Took — screenshot & recording',
+
+  // tray
+  'tray.capture': 'Screenshot',
+  'tray.record': 'Record screen',
+  'tray.settings': 'Settings…',
+  'tray.openFolder': 'Open save folder',
+  'tray.autoLaunch': 'Start with Windows',
+  'tray.quit': 'Quit',
+
+  // overlay chrome
+  'overlay.modeCapture': 'Capture',
+  'overlay.modeRecord': 'Record',
+  'overlay.drag': 'Drag',
+
+  // annotation tools
+  'tool.rect': 'Rectangle',
+  'tool.ellipse': 'Ellipse',
+  'tool.line': 'Line',
+  'tool.arrow': 'Arrow',
+  'tool.pen': 'Pen',
+  'tool.text': 'Text',
+  'tool.marker': 'Highlighter',
+  'tool.mosaic': 'Mosaic',
+  'tool.blur': 'Blur',
+  'tool.eraser': 'Eraser',
+  'tool.pin': 'Pin to screen',
+  'tool.qr': 'Decode QR code',
+  'tool.undo': 'Undo  Ctrl+Z',
+  'tool.save': 'Save  Ctrl+S',
+  'tool.cancel': 'Cancel  Esc',
+  'tool.confirm': 'Done  Enter',
+  'tool.widthThin': 'Thin',
+  'tool.widthMedium': 'Medium',
+  'tool.widthThick': 'Thick',
+
+  // magnifier
+  'mag.coord': 'XY: {x},{y}',
+  'mag.copyHint': 'Ctrl + C to copy the colour',
+  'mag.toggleHint': 'Shift to switch RGB / HEX',
+
+  // overlay toasts
+  'toast.copiedColour': 'Copied {value}',
+  'toast.qrFound': 'Decoded and copied:\n{text}',
+  'toast.qrMissing': 'No QR code found in the selection',
+
+  // recording setup card
+  'rec.start': 'Start recording',
+  'rec.format': 'Format',
+  'rec.speaker': 'System audio',
+  'rec.mic': 'Microphone',
+  'rec.camera': 'Camera',
+  'rec.cursor': 'Cursor',
+  'rec.pickDevice': 'Choose a device',
+  'rec.noDevice': 'No device found',
+  'rec.mouseHighlight': 'Highlight the cursor',
+  'rec.clickEffect': 'Show click ripples',
+  'rec.deviceFallback': '{kind} {index}',
+
+  // recording control bar
+  'recbar.pauseResume': 'Pause / resume',
+  'recbar.stop': 'Stop',
+  'recbar.discard': 'Discard recording',
+
+  // webcam bubble
+  'webcam.rounded': 'Rounded',
+  'webcam.circle': 'Circle',
+  'webcam.options': 'Options',
+  'webcam.mirror': 'Mirror',
+  'webcam.soften': 'Soften',
+  'webcam.blur': 'Blur background',
+  'webcam.blurUnsupported': 'This camera or system cannot blur the background',
+
+  // recording editor
+  'editor.play': 'Play',
+  'editor.playPause': 'Play / pause  Space',
+  'editor.download': 'Save',
+  'editor.copy': 'Copy to clipboard',
+  'editor.saved': 'Saved',
+  'editor.copied': 'Copied to clipboard',
+  'editor.copyFailed': 'Copy failed',
+
+  // pinned window
+  'pin.copy': 'Copy',
+  'pin.copyHint': 'Copy  Ctrl+C',
+  'pin.save': 'Save',
+  'pin.saveHint': 'Save  Ctrl+S',
+  'pin.closeHint': 'Close  Esc / double-click',
+
+  // settings window
+  'settings.language': 'Language',
+  'settings.languageHint': 'Applies to the tray menu and every window.',
+  'settings.hotkeys': 'Hotkeys',
+  'settings.hotkeysHint':
+    'Click a field and press the combination you want. At least one modifier is required.',
+  'settings.capture': 'Screenshot',
+  'settings.record': 'Record screen',
+  'settings.reset': 'Reset',
+  'settings.saveLocation': 'Save location',
+  'settings.saveLocationHint':
+    'Where the save dialogs start, and where the tray’s "Open save folder" goes.',
+  'settings.browse': 'Browse…',
+  'settings.open': 'Open',
+  'settings.resetDir': 'Reset to Pictures / Took',
+  'settings.cancel': 'Cancel',
+  'settings.save': 'Save',
+  'settings.saved': 'Saved',
+  'settings.listening': 'Press the new shortcut…',
+  'settings.conflict':
+    'The shortcut for {names} is already taken by another program. Try a different combination — nothing was saved.',
+  'settings.saveFailed': 'Could not save',
+  'settings.listSeparator': ', ',
+  'settings.dirNotWritable': 'That folder cannot be written to: {message}',
+
+  // file dialogs
+  'dialog.saveShot': 'Save screenshot',
+  'dialog.saveRecording': 'Save recording',
+  'dialog.pickFolder': 'Choose a save location',
+  'dialog.png': 'PNG image',
+  'dialog.mp4': 'MP4 video',
+  'dialog.gif': 'GIF animation',
+  'dialog.webm': 'WebM video',
+  'file.screenshot': 'Screenshot_{stamp}',
+  'file.recording': 'Recording_{stamp}',
+
+  // errors
+  'err.captureTitle': 'Capture failed',
+  'err.recordTitle': 'Recording failed',
+  'err.cameraTitle': 'Camera failed to start',
+  'err.saveRecordingTitle': 'Could not save the recording',
+  'err.noScreens': 'No screen available to capture',
+  'err.noSource': 'Could not find the matching screen source',
+  'err.noImage': 'No screen image was produced',
+  'err.decodeFailed': 'The screen image could not be decoded',
+  'err.unknown': 'Unknown error',
+  'err.screenDenied': 'Screen recording permission was denied',
+  'err.sourceMissing': 'No recordable screen source found',
+  'err.cameraDenied': 'Camera permission was denied',
+};
+
+const zh = {
+  'app.overlay': 'Took — 截图',
+  'app.pin': 'Took — 贴图',
+  'app.recording': 'Took — 录屏中',
+  'app.webcam': 'Took — 摄像头',
+  'app.editor': '编辑录屏',
+  'app.settings': '设置',
+  'app.tooltip': 'Took — 截图 / 录屏',
+
+  'tray.capture': '截图',
+  'tray.record': '录屏',
+  'tray.settings': '设置…',
+  'tray.openFolder': '打开保存目录',
+  'tray.autoLaunch': '开机自启',
+  'tray.quit': '退出',
+
+  'overlay.modeCapture': '截图',
+  'overlay.modeRecord': '录屏',
+  'overlay.drag': '拖动',
+
+  'tool.rect': '矩形',
+  'tool.ellipse': '椭圆',
+  'tool.line': '直线',
+  'tool.arrow': '箭头',
+  'tool.pen': '画笔',
+  'tool.text': '文字',
+  'tool.marker': '荧光笔',
+  'tool.mosaic': '马赛克',
+  'tool.blur': '模糊',
+  'tool.eraser': '橡皮擦',
+  'tool.pin': '贴图到屏幕',
+  'tool.qr': '识别二维码',
+  'tool.undo': '撤销  Ctrl+Z',
+  'tool.save': '保存  Ctrl+S',
+  'tool.cancel': '取消  Esc',
+  'tool.confirm': '完成  Enter',
+  'tool.widthThin': '细',
+  'tool.widthMedium': '中',
+  'tool.widthThick': '粗',
+
+  'mag.coord': '坐标: {x},{y}',
+  'mag.copyHint': '按 Ctrl + C 复制色值',
+  'mag.toggleHint': '按 Shift 切换 RGB/HEX',
+
+  'toast.copiedColour': '已复制 {value}',
+  'toast.qrFound': '已识别并复制:\n{text}',
+  'toast.qrMissing': '没有在选区里找到二维码',
+
+  'rec.start': '开始录制',
+  'rec.format': '选择格式',
+  'rec.speaker': '扬声器',
+  'rec.mic': '麦克风',
+  'rec.camera': '摄像头',
+  'rec.cursor': '鼠标设置',
+  'rec.pickDevice': '选择设备',
+  'rec.noDevice': '没有找到设备',
+  'rec.mouseHighlight': '鼠标高亮',
+  'rec.clickEffect': '增加点击效果',
+  'rec.deviceFallback': '{kind} {index}',
+
+  'recbar.pauseResume': '暂停 / 继续',
+  'recbar.stop': '结束录制',
+  'recbar.discard': '放弃录制',
+
+  'webcam.rounded': '圆角矩形',
+  'webcam.circle': '圆形',
+  'webcam.options': '设置',
+  'webcam.mirror': '镜像',
+  'webcam.soften': '美颜',
+  'webcam.blur': '背景虚化',
+  'webcam.blurUnsupported': '当前摄像头 / 系统不支持背景虚化',
+
+  'editor.play': '播放',
+  'editor.playPause': '播放 / 暂停  空格',
+  'editor.download': '下载',
+  'editor.copy': '复制到剪贴板',
+  'editor.saved': '已保存',
+  'editor.copied': '已复制到剪贴板',
+  'editor.copyFailed': '复制失败',
+
+  'pin.copy': '复制',
+  'pin.copyHint': '复制  Ctrl+C',
+  'pin.save': '保存',
+  'pin.saveHint': '保存  Ctrl+S',
+  'pin.closeHint': '关闭  Esc / 双击',
+
+  'settings.language': '语言',
+  'settings.languageHint': '托盘菜单和所有窗口都会跟着切换。',
+  'settings.hotkeys': '快捷键',
+  'settings.hotkeysHint': '点一下输入框，直接按下想要的组合。需要至少一个修饰键。',
+  'settings.capture': '截图',
+  'settings.record': '录屏',
+  'settings.reset': '恢复默认',
+  'settings.saveLocation': '保存位置',
+  'settings.saveLocationHint':
+    '截图和录屏的「另存为」默认落在这里，托盘的「打开保存目录」也跳这里。',
+  'settings.browse': '浏览…',
+  'settings.open': '打开',
+  'settings.resetDir': '恢复默认（图片 / Took）',
+  'settings.cancel': '取消',
+  'settings.save': '保存',
+  'settings.saved': '已保存',
+  'settings.listening': '按下新的快捷键…',
+  'settings.conflict': '{names} 的快捷键被其他程序占用了，换一个组合试试。设置没有生效。',
+  'settings.saveFailed': '保存失败',
+  'settings.listSeparator': '、',
+  'settings.dirNotWritable': '这个目录写不进去：{message}',
+
+  'dialog.saveShot': '保存截图',
+  'dialog.saveRecording': '保存录屏',
+  'dialog.pickFolder': '选择保存位置',
+  'dialog.png': 'PNG 图片',
+  'dialog.mp4': 'MP4 视频',
+  'dialog.gif': 'GIF 动图',
+  'dialog.webm': 'WebM 视频',
+  'file.screenshot': '截图_{stamp}',
+  'file.recording': '录屏_{stamp}',
+
+  'err.captureTitle': '截屏失败',
+  'err.recordTitle': '录屏失败',
+  'err.cameraTitle': '摄像头打开失败',
+  'err.saveRecordingTitle': '保存录屏失败',
+  'err.noScreens': '没有可捕获的屏幕',
+  'err.noSource': '找不到对应的屏幕源',
+  'err.noImage': '没有拿到屏幕图像',
+  'err.decodeFailed': '屏幕图像解码失败',
+  'err.unknown': '未知错误',
+  'err.screenDenied': '屏幕录制权限被拒绝',
+  'err.sourceMissing': '找不到可录制的屏幕源',
+  'err.cameraDenied': '摄像头权限被拒绝',
+};
+
+const LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'zh', label: '简体中文' },
+];
+
+module.exports = { en, zh, LANGUAGES, DEFAULT_LANGUAGE: 'en' };

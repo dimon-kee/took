@@ -363,6 +363,11 @@ body {
   background: #4096ff;
 }
 
+/* The wide tracking suits four CJK characters; Latin text just looks gappy. */
+html:not([lang^='zh']) .rec-start {
+  letter-spacing: 0.3px;
+}
+
 .rec-body {
   display: flex;
   align-items: center;

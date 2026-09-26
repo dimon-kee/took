@@ -1,6 +1,7 @@
 'use strict';
 
 const { contextBridge, ipcRenderer } = require('electron');
+const { setupI18n } = require('./i18n-bridge');
 const { GIFEncoder, quantize, applyPalette } = require('gifenc');
 
 /**
@@ -61,3 +62,5 @@ contextBridge.exposeInMainWorld('took', {
   done: (buffer, mime, meta) => ipcRenderer.invoke('recorder:done', { buffer, mime, meta }),
   failed: (message) => ipcRenderer.send('recorder:failed', message),
 });
+
+setupI18n();

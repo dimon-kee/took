@@ -88,6 +88,17 @@ tasks:
     cmds:
       - cmd: npx electron tools/check-settings.js
 
+  check:i18n:
+    desc: Both languages define the same keys, every key is used, no hardcoded Chinese is left
+    cmds:
+      - cmd: node tools/check-i18n.js
+
+  check:scripts:
+    desc: Scripts sharing a page must not redeclare top-level bindings
+    cmds:
+      # node --check 看的是单个文件，看不到同一页面里多个脚本之间的重复声明。
+      - cmd: node tools/check-scripts.js
+
   check:latency:
     desc: Time the hotkey-to-overlay path, and confirm the grabbed frame is not blank
     cmds:
@@ -124,6 +135,8 @@ tasks:
   check:
     desc: Run every diagnostic
     cmds:
+      - task: check:i18n
+      - task: check:scripts
       - task: check:settings
       - task: check:capture
       - task: check:latency

@@ -24,6 +24,16 @@ const screens = require('./screens');
 const cursorTracker = require('./cursor');
 const autoLaunch = require('./autolaunch');
 const settings = require('./settings');
+const { createTranslator, LANGUAGES } = require('../shared/i18n');
+
+/**
+ * Translate with whatever language is configured right now. Resolved per call
+ * rather than cached, so switching language in settings takes effect as soon as
+ * the tray menu is rebuilt.
+ */
+function t(key, vars) {
+  return createTranslator(settings.get().language)(key, vars);
+}
 const {
   createOverlayWindow,
   createPinWindow,
@@ -109,7 +119,7 @@ function trayIcon() {
 
 function setupTray() {
   tray = new Tray(trayIcon());
-  tray.setToolTip('Took — 截图 / 录屏');
+  tray.setToolTip(t('app.tooltip'));
   refreshTrayMenu();
   tray.on('click', () => startCapture());
 }
@@ -119,13 +129,13 @@ function refreshTrayMenu() {
 
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: `截图  ${prettyKey(shortcutFor('capture'))}`, click: () => startCapture() },
-      { label: `录屏  ${prettyKey(shortcutFor('record'))}`, click: () => startRecordSelection() },
+      { label: `${t('tray.capture')}  ${prettyKey(shortcutFor('capture'))}`, click: () => startCapture() },
+      { label: `${t('tray.record')}  ${prettyKey(shortcutFor('record'))}`, click: () => startRecordSelection() },
       { type: 'separator' },
-      { label: '设置…', click: () => openSettings() },
-      { label: '打开保存目录', click: () => shell.openPath(settings.saveDir()) },
+      { label: t('tray.settings'), click: () => openSettings() },
+      { label: t('tray.openFolder'), click: () => shell.openPath(settings.saveDir()) },
       {
-        label: '开机自启',
+        label: t('tray.autoLaunch'),
         type: 'checkbox',
         checked: autoLaunch.enabled(),
         click: (item) => {
@@ -134,7 +144,7 @@ function refreshTrayMenu() {
         },
       },
       { type: 'separator' },
-      { label: '退出', click: () => app.exit(0) },
+      { label: t('tray.quit'), click: () => app.exit(0) },
     ])
   );
 }
@@ -199,7 +209,7 @@ async function openOverlays(mode) {
 
   try {
     const shots = await describeDisplays();
-    if (!shots.length) throw new Error('没有可捕获的屏幕');
+    if (!shots.length) throw new Error(t('err.noScreens'));
 
     const cursor = screen.getCursorScreenPoint();
 
@@ -228,7 +238,7 @@ async function openOverlays(mode) {
     });
   } catch (err) {
     console.error('[took] 截屏失败:', err);
-    dialog.showErrorBox('截屏失败', String(err && err.message ? err.message : err));
+    dialog.showErrorBox(t('err.captureTitle'), String(err && err.message ? err.message : err));
     closeOverlays();
   } finally {
     capturing = false;
@@ -294,9 +304,9 @@ ipcMain.handle('overlay:copy', (event, dataURL) => {
 ipcMain.handle('overlay:save', async (event, dataURL) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: '保存截图',
-    defaultPath: path.join(settings.saveDir(), `截图_${stamp()}.png`),
-    filters: [{ name: 'PNG 图片', extensions: ['png'] }],
+    title: t('dialog.saveShot'),
+    defaultPath: path.join(settings.saveDir(), `${t('file.screenshot', { stamp: stamp() })}.png`),
+    filters: [{ name: t('dialog.png'), extensions: ['png'] }],
   });
 
   if (canceled || !filePath) return false;
@@ -346,9 +356,9 @@ ipcMain.on('pin:set-opacity', (event, value) => {
 ipcMain.handle('pin:save', async (event, dataURL) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: '保存截图',
-    defaultPath: path.join(settings.saveDir(), `截图_${stamp()}.png`),
-    filters: [{ name: 'PNG 图片', extensions: ['png'] }],
+    title: t('dialog.saveShot'),
+    defaultPath: path.join(settings.saveDir(), `${t('file.screenshot', { stamp: stamp() })}.png`),
+    filters: [{ name: t('dialog.png'), extensions: ['png'] }],
   });
   if (canceled || !filePath) return false;
   fs.writeFileSync(filePath, nativeImage.createFromDataURL(dataURL).toPNG());
@@ -386,7 +396,7 @@ ipcMain.on('webcam:close', () => closeWebcam());
 
 ipcMain.on('webcam:failed', (event, message) => {
   closeWebcam();
-  dialog.showErrorBox('摄像头打开失败', String(message || '未知错误'));
+  dialog.showErrorBox(t('err.cameraTitle'), String(message || t('err.unknown')));
 });
 
 /** Overlay finished picking a region in record mode. */
@@ -405,7 +415,7 @@ ipcMain.handle('overlay:record', async (event, { rect, displayId, scaleFactor, s
     sources.find((s) => String(s.display_id) === String(displayId)) || sources[index] || sources[0];
 
   if (!source || !display) {
-    dialog.showErrorBox('录屏失败', '找不到对应的屏幕源');
+    dialog.showErrorBox(t('err.recordTitle'), t('err.noSource'));
     closeWebcam();
     return false;
   }
@@ -485,7 +495,7 @@ ipcMain.handle('recorder:done', async (event, { buffer, mime, meta }) => {
   try {
     fs.writeFileSync(file, Buffer.from(buffer));
   } catch (err) {
-    dialog.showErrorBox('保存录屏失败', String(err.message || err));
+    dialog.showErrorBox(t('err.saveRecordingTitle'), String(err.message || err));
     return false;
   }
 
@@ -514,7 +524,7 @@ ipcMain.handle('recorder:done', async (event, { buffer, mime, meta }) => {
 
 ipcMain.on('recorder:failed', (event, message) => {
   teardownRecording();
-  dialog.showErrorBox('录屏失败', String(message || '未知错误'));
+  dialog.showErrorBox(t('err.recordTitle'), String(message || t('err.unknown')));
 });
 
 ipcMain.handle('editor:save', async (event) => {
@@ -522,8 +532,8 @@ ipcMain.handle('editor:save', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
 
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: '保存录屏',
-    defaultPath: path.join(settings.saveDir(), `录屏_${stamp()}.${lastClip.ext}`),
+    title: t('dialog.saveRecording'),
+    defaultPath: path.join(settings.saveDir(), `${t('file.recording', { stamp: stamp() })}.${lastClip.ext}`),
     filters: [{ name: describeFormat(lastClip.ext), extensions: [lastClip.ext] }],
   });
 
@@ -565,7 +575,7 @@ function extensionFor(mime) {
 }
 
 function describeFormat(ext) {
-  return { mp4: 'MP4 视频', gif: 'GIF 动图', webm: 'WebM 视频' }[ext] || ext.toUpperCase();
+  return { mp4: t('dialog.mp4'), gif: t('dialog.gif'), webm: t('dialog.webm') }[ext] || ext.toUpperCase();
 }
 
 function sendToRecorder(channel, payload) {
@@ -617,6 +627,7 @@ ipcMain.handle('settings:load', () => ({
     // What the placeholder path actually resolves to, so the field can show a
     // real directory instead of an empty box.
     saveDirLabel: settings.saveDir(),
+    languages: LANGUAGES,
   },
 }));
 
@@ -625,7 +636,7 @@ ipcMain.handle('settings:save', (event, next) => {
 
   if (next.saveDir) {
     const check = settings.checkWritable(next.saveDir);
-    if (!check.ok) return { ok: false, message: `这个目录写不进去：${check.message}` };
+    if (!check.ok) return { ok: false, message: t('settings.dirNotWritable', { message: check.message }) };
   }
 
   settings.set(next);
@@ -640,13 +651,26 @@ ipcMain.handle('settings:save', (event, next) => {
   }
 
   refreshTrayMenu();
-  return { ok: true };
+
+  // A window's language arrives as a command-line argument at creation, which a
+  // reload would not change — so the settings window has to be rebuilt, not
+  // refreshed. Every other window is transient and picks it up on its own.
+  const languageChanged = previous.language !== settings.get().language;
+  if (languageChanged) {
+    setTimeout(() => {
+      if (settingsWin && !settingsWin.isDestroyed()) settingsWin.destroy();
+      settingsWin = null;
+      openSettings();
+    }, 350);
+  }
+
+  return { ok: true, languageChanged };
 });
 
 ipcMain.handle('settings:pick-dir', async (event, current) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const { canceled, filePaths } = await dialog.showOpenDialog(win, {
-    title: '选择保存位置',
+    title: t('dialog.pickFolder'),
     defaultPath: current || settings.saveDir(),
     properties: ['openDirectory', 'createDirectory'],
   });

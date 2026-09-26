@@ -1,6 +1,10 @@
 'use strict';
 
 (() => {
+  // Scoped inside the IIFE: the overlay loads several classic scripts into one
+  // global scope, and a top-level const T in more than one of them is a
+  // redeclaration SyntaxError that stops the later script from loading at all.
+  const T = (key, vars) => window.i18n.t(key, vars);
   const Icons = window.TookIcons;
   const Shapes = window.TookShapes;
   const Mag = window.TookMagnifier;
@@ -32,24 +36,24 @@
   const FREEHAND = new Set(['pen', 'marker']);
 
   const TOOLBAR = [
-    { id: 'rect', title: '矩形' },
-    { id: 'ellipse', title: '椭圆' },
-    { id: 'line', title: '直线' },
-    { id: 'arrow', title: '箭头' },
-    { id: 'pen', title: '画笔' },
-    { id: 'text', title: '文字' },
-    { id: 'marker', title: '荧光笔' },
+    { id: 'rect', title: 'tool.rect' },
+    { id: 'ellipse', title: 'tool.ellipse' },
+    { id: 'line', title: 'tool.line' },
+    { id: 'arrow', title: 'tool.arrow' },
+    { id: 'pen', title: 'tool.pen' },
+    { id: 'text', title: 'tool.text' },
+    { id: 'marker', title: 'tool.marker' },
     { sep: true },
-    { id: 'mosaic', title: '马赛克' },
-    { id: 'blur', title: '模糊' },
-    { id: 'eraser', title: '橡皮擦' },
-    { id: 'pin', title: '贴图到屏幕', action: true },
-    { id: 'qr', icon: 'qr', title: '识别二维码', action: true },
+    { id: 'mosaic', title: 'tool.mosaic' },
+    { id: 'blur', title: 'tool.blur' },
+    { id: 'eraser', title: 'tool.eraser' },
+    { id: 'pin', title: 'tool.pin', action: true },
+    { id: 'qr', icon: 'qr', title: 'tool.qr', action: true },
     { sep: true },
-    { id: 'undo', title: '撤销  Ctrl+Z', action: true },
-    { id: 'save', title: '保存  Ctrl+S', action: true },
-    { id: 'close', title: '取消  Esc', action: true, cls: 'danger' },
-    { id: 'confirm', title: '完成  Enter', action: true, cls: 'ok' },
+    { id: 'undo', title: 'tool.undo', action: true },
+    { id: 'save', title: 'tool.save', action: true },
+    { id: 'close', title: 'tool.cancel', action: true, cls: 'danger' },
+    { id: 'confirm', title: 'tool.confirm', action: true, cls: 'ok' },
   ];
 
   const S = {
@@ -219,7 +223,7 @@
     } catch (err) {
       console.warn('[took] 抓帧失败，退回 PNG 路径:', err.message);
       const dataURL = await window.took.fallbackShot(shot.displayId);
-      if (!dataURL) throw new Error('没有拿到屏幕图像');
+      if (!dataURL) throw new Error(T('err.noImage'));
       await drawDataURL(dataURL);
     }
 
@@ -227,7 +231,7 @@
   }
 
   async function grabFromStream(shot) {
-    if (!shot.sourceId) throw new Error('没有屏幕源');
+    if (!shot.sourceId) throw new Error(T('err.noSource'));
 
     const { width, height } = shot.pixelSize;
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -273,7 +277,7 @@
         ctx.base.drawImage(img, 0, 0);
         resolve();
       };
-      img.onerror = () => reject(new Error('屏幕图像解码失败'));
+      img.onerror = () => reject(new Error(T('err.decodeFailed')));
       img.src = dataURL;
     });
   }
@@ -631,7 +635,7 @@
       const btn = document.createElement('button');
       btn.className = `tool${item.cls ? ` ${item.cls}` : ''}`;
       btn.dataset.id = item.id;
-      btn.title = item.title;
+      btn.title = T(item.title);
       btn.innerHTML = Icons[item.icon || item.id] || '';
       btn.addEventListener('mousedown', (e) => e.stopPropagation());
       btn.addEventListener('click', (e) => {
@@ -656,7 +660,7 @@
       const btn = document.createElement('button');
       btn.className = `width-dot${i === S.widthIdx ? ' active' : ''}`;
       btn.dataset.width = String(i);
-      btn.title = ['细', '中', '粗'][i];
+      btn.title = T(['tool.widthThin', 'tool.widthMedium', 'tool.widthThick'][i]);
       const dot = document.createElement('i');
       const size = 5 + i * 3;
       dot.style.width = `${size}px`;
@@ -1385,9 +1389,9 @@
 
     if (text) {
       window.took.copyText(text);
-      toast(`已识别并复制:\n${text}`, 2600);
+      toast(T('toast.qrFound', { text }), 2600);
     } else {
-      toast('没有在选区里找到二维码', 1800);
+      toast(T('toast.qrMissing'), 1800);
     }
   }
 
@@ -1395,7 +1399,7 @@
     const [r, g, b] = pixelAt(S.cursor.x, S.cursor.y);
     const value = S.hexMode ? Mag.toHex(r, g, b) : `${r},${g},${b}`;
     window.took.copyText(value);
-    toast(`已复制 ${value}`, 1200);
+    toast(T('toast.copiedColour', { value }), 1200);
   }
 
   function toast(message, ms) {

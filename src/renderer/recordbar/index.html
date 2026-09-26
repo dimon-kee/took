@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; style-src 'self'; script-src 'self'"
     />
-    <title>Took — 录屏中</title>
+    <title data-i18n="app.recording">Took</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div class="bar">
       <div class="grip"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-      <button class="icon" id="btn-pause" title="暂停 / 继续">
+      <button class="icon" id="btn-pause" data-i18n-title="recbar.pauseResume">
         <svg viewBox="0 0 20 20" width="16" height="16" id="glyph-pause">
           <rect x="5.4" y="4" width="3.6" height="12" rx="1" fill="currentColor" />
           <rect x="11" y="4" width="3.6" height="12" rx="1" fill="currentColor" />
@@ -22,8 +22,8 @@
         </svg>
       </button>
       <span class="time"><b id="elapsed">00:00:00</b> / <span id="limit">01:00:00</span></span>
-      <button class="stop" id="btn-stop">结束录制</button>
-      <button class="icon caret" id="btn-cancel" title="放弃录制">
+      <button class="stop" id="btn-stop" data-i18n="recbar.stop"></button>
+      <button class="icon caret" id="btn-cancel" data-i18n-title="recbar.discard">
         <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor"
              stroke-width="2" stroke-linecap="round">
           <path d="M5.4 5.4 L14.6 14.6 M14.6 5.4 L5.4 14.6" />

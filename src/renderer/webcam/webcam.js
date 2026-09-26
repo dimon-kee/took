@@ -1,5 +1,8 @@
 'use strict';
 
+/** Shortcut to the translator the preload exposed. */
+const T = (key, vars) => window.i18n.t(key, vars);
+
 /**
  * Always-on-top webcam bubble. It is a real window rather than something
  * composited into the recording, so the desktop grab picks it up on its own and
@@ -44,7 +47,9 @@
       loop();
     } catch (err) {
       console.error('[took] 摄像头启动失败:', err);
-      window.took.failed(err.name === 'NotAllowedError' ? '摄像头权限被拒绝' : err.message);
+      window.took.failed(
+        err.name === 'NotAllowedError' ? T('err.cameraDenied') : err.message
+      );
     }
   }
 
@@ -61,7 +66,7 @@
     if (!supported) {
       const row = document.getElementById('row-blur');
       row.classList.add('disabled');
-      row.title = '当前摄像头 / 系统不支持背景虚化';
+      row.title = T('webcam.blurUnsupported');
     }
 
     opts.blur.addEventListener('change', async () => {

@@ -1,6 +1,7 @@
 'use strict';
 
 const { contextBridge, ipcRenderer } = require('electron');
+const { setupI18n } = require('./i18n-bridge');
 const jsQR = require('jsqr');
 
 contextBridge.exposeInMainWorld('took', {
@@ -29,3 +30,5 @@ contextBridge.exposeInMainWorld('took', {
     return result ? result.data : null;
   },
 });
+
+setupI18n();

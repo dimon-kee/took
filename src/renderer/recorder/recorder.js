@@ -1,5 +1,8 @@
 'use strict';
 
+/** Shortcut to the translator the preload exposed. */
+const T = (key, vars) => window.i18n.t(key, vars);
+
 /**
  * Hidden worker window that owns the capture.
  *
@@ -414,9 +417,9 @@
   }
 
   function describe(err) {
-    if (!err) return '未知错误';
-    if (err.name === 'NotAllowedError') return '屏幕录制权限被拒绝';
-    if (err.name === 'NotFoundError') return '找不到可录制的屏幕源';
+    if (!err) return T('err.unknown');
+    if (err.name === 'NotAllowedError') return T('err.screenDenied');
+    if (err.name === 'NotFoundError') return T('err.sourceMissing');
     return err.message || String(err);
   }
 })();

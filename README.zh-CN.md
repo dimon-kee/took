@@ -145,6 +145,8 @@ task autostart:on
 
 托盘菜单 →「设置…」。
 
+**语言** —— English(默认)或简体中文。托盘菜单、所有窗口和文件对话框都会跟着切。已经打开的窗口保持原语言,下次打开时生效;设置窗口本身会立刻重建,所以你马上能看到效果。
+
 **快捷键** —— 点一下输入框,直接按下想要的组合。至少要带一个修饰键,不然那个键会被全局吞掉。组合被别的程序占用时会标红提示,并且**整份设置都不保存** —— 不会让你落到一半快捷键失灵的状态。每行右边有「恢复默认」。
 
 **保存位置** —— 截图和录屏的「另存为」默认落在这里,托盘的「打开保存目录」也跳这里。默认是 `图片/Took/`。选新目录时会先试写一个探针文件,写不进去就当场拒绝,不会等你截完图才发现存不了。
@@ -204,6 +206,8 @@ src/
 | --- | --- | --- |
 | `preview-ui.js` | `task preview` | 用合成的假桌面渲染取景层的各个状态,输出 PNG。取景层是全屏置顶的,出了问题挂不上 DevTools,改 UI 后用它自查 |
 | `preview-settings.js` | `task preview` | 渲染设置窗口,含按键录制中和快捷键冲突两种状态 |
+| `check-i18n.js` | `task check:i18n` | 两种语言的键完全一致、引用的键都存在、没有死键、没有遗留的硬编码中文 |
+| `check-scripts.js` | `task check:scripts` | 同一页面的多个普通脚本共用全局作用域,顶层重复声明会让后一个脚本整个加载失败,而 `node --check` 看不到 |
 | `check-settings.js` | `task check:settings` | 校验配置读写、保存目录失效时的退回、快捷键冲突时的回滚 |
 | `check-latency.js` | `task check:latency` | 量从快捷键到画面可见的耗时,并确认抓到的帧不是黑的 |
 | `check-capture-speed.js` | `task check:capture-speed` | 拆解 desktopCapturer 慢在哪,和 MediaStream 抓帧对比。截图为什么不走 desktopCapturer 的依据 |

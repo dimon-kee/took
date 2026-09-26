@@ -1,6 +1,7 @@
 'use strict';
 
 const { contextBridge, ipcRenderer } = require('electron');
+const { setupI18n } = require('./i18n-bridge');
 
 contextBridge.exposeInMainWorld('took', {
   load: () => ipcRenderer.invoke('settings:load'),
@@ -9,3 +10,5 @@ contextBridge.exposeInMainWorld('took', {
   openDir: () => ipcRenderer.send('settings:open-dir'),
   close: () => ipcRenderer.send('settings:close'),
 });
+
+setupI18n();

@@ -5,6 +5,10 @@
  * frozen screenshot plus the coordinate / colour readout.
  */
 window.TookMagnifier = (() => {
+  // Scoped inside the IIFE: the overlay loads several classic scripts into one
+  // global scope, and a top-level const T in more than one of them is a
+  // redeclaration SyntaxError that stops the later script from loading at all.
+  const T = (key, vars) => window.i18n.t(key, vars);
   const ZOOM = 8; // screen pixels per source pixel
   const SIZE = 128; // loupe edge, CSS px
   const GAP = 18; // distance from the cursor
@@ -17,12 +21,12 @@ window.TookMagnifier = (() => {
       <canvas class="mag-canvas" width="${SIZE}" height="${SIZE}"
               style="width:${SIZE}px;height:${SIZE}px"></canvas>
       <div class="mag-info">
-        <div class="mag-row" data-role="coord">坐标: 0,0</div>
+        <div class="mag-row" data-role="coord"></div>
         <div class="mag-row">
           <span class="mag-swatch" data-role="swatch"></span><span data-role="color">RGB:0,0,0</span>
         </div>
-        <div class="mag-row mag-hint">按 Ctrl + C 复制色值</div>
-        <div class="mag-row mag-hint">按 Shift 切换 RGB/HEX</div>
+        <div class="mag-row mag-hint">${T('mag.copyHint')}</div>
+        <div class="mag-row mag-hint">${T('mag.toggleHint')}</div>
       </div>`;
     root.appendChild(el);
 
@@ -78,7 +82,7 @@ window.TookMagnifier = (() => {
     ctx.strokeRect(center + 0.5, center + 0.5, ZOOM - 1, ZOOM - 1);
 
     const [r, g, b] = opts.rgb;
-    mag.refs.coord.textContent = `坐标: ${opts.screenX},${opts.screenY}`;
+    mag.refs.coord.textContent = T('mag.coord', { x: opts.screenX, y: opts.screenY });
     mag.refs.color.textContent = opts.hex ? `HEX:${toHex(r, g, b)}` : `RGB:${r},${g},${b}`;
     mag.refs.swatch.style.background = `rgb(${r},${g},${b})`;
 

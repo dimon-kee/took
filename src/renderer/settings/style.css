@@ -57,10 +57,55 @@ h2 {
   margin-bottom: 10px;
 }
 
+/* Wide enough for "Record screen" on one line — the Chinese labels are much
+   shorter, so sizing for English keeps both from wrapping. */
 .row label {
-  width: 44px;
+  width: 104px;
   flex: none;
   color: rgba(255, 255, 255, 0.72);
+}
+
+/* --- language picker ----------------------------------------------------- */
+
+.lang {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 14px 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.lang:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.lang .dot {
+  position: relative;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.6px solid rgba(255, 255, 255, 0.45);
+  flex: none;
+}
+
+.lang.is-on .dot {
+  border-color: #1677ff;
+  background: #1677ff;
+}
+
+.lang.is-on .dot::after {
+  content: '';
+  position: absolute;
+  inset: 3.4px;
+  border-radius: 50%;
+  background: #fff;
 }
 
 /* --- hotkey capture ------------------------------------------------------ */

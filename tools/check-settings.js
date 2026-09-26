@@ -50,6 +50,14 @@ function run() {
   check('保存目录留空走默认', defaults.saveDir === null);
   check('默认目录可解析', fs.existsSync(settings.saveDir()), settings.saveDir());
 
+  console.log('\n语言');
+  check('默认是英文', defaults.language === 'en');
+  settings.set({ language: 'zh' });
+  check('切到中文并写盘', JSON.parse(fs.readFileSync(settings.file(), 'utf8')).language === 'zh');
+  settings.set({ language: 'fr' });
+  check('不支持的语言回落到英文', settings.get().language === 'en', settings.get().language);
+  settings.set({ language: 'en' });
+
   console.log('\n持久化');
   settings.set({ shortcuts: { capture: 'CommandOrControl+Alt+1' } });
   const onDisk = JSON.parse(fs.readFileSync(settings.file(), 'utf8'));

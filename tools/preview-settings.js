@@ -1,5 +1,8 @@
 'use strict';
 
+// 语言可用 TOOK_LANG=zh 覆盖，便于比对两种语言的排版。
+const LANG = process.env.TOOK_LANG || 'en';
+
 /**
  * Renders the settings window to a PNG, including the hotkey-capture and
  * conflict states, so the layout can be checked without clicking through the
@@ -21,7 +24,11 @@ const OUT = process.argv[2] || path.join(app.getPath('temp'), 'took-preview');
 // Stand in for src/main/index.js, which this harness does not load.
 ipcMain.handle('settings:load', () => ({
   settings: settings.get(),
-  defaults: { ...settings.DEFAULTS, saveDirLabel: settings.saveDir() },
+  defaults: {
+    ...settings.DEFAULTS,
+    saveDirLabel: settings.saveDir(),
+    languages: require('../src/shared/i18n').LANGUAGES,
+  },
 }));
 ipcMain.handle('settings:save', () => ({ ok: false, conflicts: ['record'] }));
 ipcMain.handle('settings:pick-dir', () => null);
@@ -32,12 +39,13 @@ app.whenReady().then(async () => {
   fs.mkdirSync(OUT, { recursive: true });
 
   const win = new BrowserWindow({
-    width: 560,
-    height: 470,
+    width: 580,
+    height: 580,
     show: true,
     useContentSize: true,
     webPreferences: {
       preload: path.join(__dirname, '..', 'src', 'preload', 'settings.js'),
+      additionalArguments: [`--took-lang=${LANG}`],
       contextIsolation: true,
       sandbox: false,
     },

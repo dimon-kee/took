@@ -45,6 +45,14 @@ jobs:
             node --check "$file" || exit 1
           done
 
+      # node --check sees one file at a time; several classic scripts share a
+      # page's global scope, so a clash between them only shows up here.
+      - name: Cross-script declarations
+        run: node tools/check-scripts.js
+
+      - name: Translations
+        run: node tools/check-i18n.js
+
       - run: npm run dist
 
       - uses: actions/upload-artifact@v4

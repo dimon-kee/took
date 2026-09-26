@@ -3,9 +3,24 @@
 const path = require('path');
 const { BrowserWindow, screen } = require('electron');
 const win32 = require('./win32');
+const settings = require('./settings');
+const { createTranslator, LANG_SWITCH } = require('../shared/i18n');
 
 const RENDERER = path.join(__dirname, '..', 'renderer');
 const PRELOAD = path.join(__dirname, '..', 'preload');
+
+/**
+ * Every window gets the current language on its command line; its preload turns
+ * that into a translator. Read per call so a change takes effect on the next
+ * window without any invalidation dance.
+ */
+function langArgs(extra = []) {
+  return [`${LANG_SWITCH}${settings.get().language}`, ...extra];
+}
+
+function translate() {
+  return createTranslator(settings.get().language);
+}
 
 /**
  * One borderless window pinned over each display, rendering the frozen
@@ -45,6 +60,7 @@ function createOverlayWindow(shot) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      additionalArguments: langArgs(),
       backgroundThrottling: false,
     },
   });
@@ -83,7 +99,7 @@ function createPinWindow({ dataURL, width, height, x, y }) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      additionalArguments: [`--pin-data=${encodeURIComponent(dataURL)}`],
+      additionalArguments: langArgs([`--pin-data=${encodeURIComponent(dataURL)}`]),
     },
   });
 
@@ -105,6 +121,7 @@ function createRecorderWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      additionalArguments: langArgs(),
       backgroundThrottling: false,
     },
   });
@@ -151,6 +168,7 @@ function createRecordBarWindow(region) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      additionalArguments: langArgs(),
     },
   });
 
@@ -176,7 +194,7 @@ function createEditorWindow(clip) {
     height,
     minWidth: 460,
     minHeight: 320,
-    title: '编辑录屏',
+    title: translate()('app.editor'),
     backgroundColor: '#16161a',
     show: false,
     webPreferences: {
@@ -184,7 +202,7 @@ function createEditorWindow(clip) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      additionalArguments: [`--clip=${encodeURIComponent(JSON.stringify(clip))}`],
+      additionalArguments: langArgs([`--clip=${encodeURIComponent(JSON.stringify(clip))}`]),
     },
   });
 
@@ -224,7 +242,7 @@ function createWebcamWindow({ deviceId, bounds }) {
       nodeIntegration: false,
       sandbox: false,
       backgroundThrottling: false,
-      additionalArguments: [`--device=${encodeURIComponent(deviceId || '')}`],
+      additionalArguments: langArgs([`--device=${encodeURIComponent(deviceId || '')}`]),
     },
   });
 
@@ -238,13 +256,13 @@ function createWebcamWindow({ deviceId, bounds }) {
 
 function createSettingsWindow() {
   const win = new BrowserWindow({
-    width: 560,
-    height: 470,
+    width: 580,
+    height: 580,
     resizable: false,
     minimizable: false,
     maximizable: false,
     fullscreenable: false,
-    title: '设置',
+    title: translate()('app.settings'),
     backgroundColor: '#1c1c20',
     show: false,
     webPreferences: {
@@ -252,6 +270,7 @@ function createSettingsWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      additionalArguments: langArgs(),
     },
   });
 

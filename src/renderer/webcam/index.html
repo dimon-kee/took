@@ -1,21 +1,21 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; style-src 'self'; script-src 'self'; media-src 'self' blob:"
     />
-    <title>Took — 摄像头</title>
+    <title data-i18n="app.webcam">Took</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <canvas id="view"></canvas>
 
     <div class="tools" id="tools">
-      <button class="shape" data-shape="rect" title="圆角矩形"><i class="s-rect"></i></button>
-      <button class="shape" data-shape="circle" title="圆形"><i class="s-circle"></i></button>
-      <button class="gear" id="btn-gear" title="设置">
+      <button class="shape" data-shape="rect" data-i18n-title="webcam.rounded"><i class="s-rect"></i></button>
+      <button class="shape" data-shape="circle" data-i18n-title="webcam.circle"><i class="s-circle"></i></button>
+      <button class="gear" id="btn-gear" data-i18n-title="webcam.options">
         <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor"
              stroke-width="1.6">
           <circle cx="10" cy="10" r="2.8" />
@@ -27,10 +27,10 @@
     </div>
 
     <div class="menu hidden" id="menu">
-      <label class="row"><input type="checkbox" id="opt-mirror" /><i></i><span>镜像</span></label>
-      <label class="row"><input type="checkbox" id="opt-beauty" /><i></i><span>美颜</span></label>
+      <label class="row"><input type="checkbox" id="opt-mirror" /><i></i><span data-i18n="webcam.mirror"></span></label>
+      <label class="row"><input type="checkbox" id="opt-beauty" /><i></i><span data-i18n="webcam.soften"></span></label>
       <label class="row" id="row-blur">
-        <input type="checkbox" id="opt-blur" /><i></i><span>背景虚化</span>
+        <input type="checkbox" id="opt-blur" /><i></i><span data-i18n="webcam.blur"></span>
       </label>
     </div>
 

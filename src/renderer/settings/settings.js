@@ -1,13 +1,17 @@
 'use strict';
 
+/** Shortcut to the translator the preload exposed. */
+const T = (key, vars) => window.i18n.t(key, vars);
+
 (() => {
   const els = {
     saveDir: document.getElementById('save-dir'),
+    langRow: document.getElementById('lang-row'),
     error: document.getElementById('error'),
     status: document.getElementById('status'),
   };
 
-  const LABELS = { capture: '截图', record: '录屏' };
+  const LABELS = { capture: 'settings.capture', record: 'settings.record' };
 
   let current = null; // the settings as loaded / edited
   let defaults = null;
@@ -20,8 +24,10 @@
     defaults = data.defaults;
     current = data.settings;
 
-    render();
     wire();
+    // After wire(), not before: the language buttons do not exist until
+    // buildLanguages() has run, so an earlier render could not mark one active.
+    render();
   }
 
   function render() {
@@ -31,9 +37,37 @@
       btn.classList.remove('conflict');
     });
     els.saveDir.value = current.saveDir || defaults.saveDirLabel;
+
+    els.langRow.querySelectorAll('.lang').forEach((btn) => {
+      btn.classList.toggle('is-on', btn.dataset.lang === current.language);
+    });
+  }
+
+  function buildLanguages() {
+    // Never let one missing field take the whole window down — the rest of the
+    // settings are still usable without a language picker.
+    const languages = defaults.languages || [];
+    if (!languages.length) return;
+
+    els.langRow.innerHTML = languages
+      .map(
+        (l) => `<button class="lang rec-radio" data-lang="${l.code}" type="button">
+            <i class="dot"></i><span>${l.label}</span>
+          </button>`
+      )
+      .join('');
+
+    els.langRow.querySelectorAll('.lang').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        current.language = btn.dataset.lang;
+        clearError();
+        render();
+      });
+    });
   }
 
   function wire() {
+    buildLanguages();
     document.querySelectorAll('.hotkey').forEach((btn) => {
       btn.addEventListener('click', () => startListening(btn));
     });
@@ -79,7 +113,7 @@
     stopListening();
     listening = btn;
     btn.classList.add('listening');
-    btn.textContent = '按下新的快捷键…';
+    btn.textContent = T('settings.listening');
     clearError();
   }
 
@@ -181,8 +215,10 @@
     const result = await window.took.save(current);
 
     if (result.ok) {
-      els.status.textContent = '已保存';
-      setTimeout(() => window.took.close(), 500);
+      els.status.textContent = T('settings.saved');
+      // On a language change main rebuilds this window, so closing it here
+      // would race that and leave nothing on screen.
+      if (!result.languageChanged) setTimeout(() => window.took.close(), 500);
       return;
     }
 
@@ -191,12 +227,12 @@
         const btn = document.querySelector(`.hotkey[data-key="${key}"]`);
         if (btn) btn.classList.add('conflict');
       });
-      const names = result.conflicts.map((k) => LABELS[k] || k).join('、');
-      showError(`${names} 的快捷键被其他程序占用了，换一个组合试试。设置没有生效。`);
+      const names = result.conflicts.map((k) => T(LABELS[k] || k)).join(T('settings.listSeparator'));
+      showError(T('settings.conflict', { names }));
       return;
     }
 
-    showError(result.message || '保存失败');
+    showError(result.message || T('settings.saveFailed'));
   }
 
   function showError(message) {

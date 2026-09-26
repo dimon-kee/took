@@ -8,27 +8,31 @@
  * to camera and cursor.
  */
 window.TookRecordPanel = (() => {
+  // Scoped inside the IIFE: the overlay loads several classic scripts into one
+  // global scope, and a top-level const T in more than one of them is a
+  // redeclaration SyntaxError that stops the later script from loading at all.
+  const T = (key, vars) => window.i18n.t(key, vars);
   const Icons = window.TookIcons;
 
   const DEVICES = [
-    { key: 'speaker', icon: 'speaker', label: '扬声器', menu: null, audio: true },
-    { key: 'mic', icon: 'mic', label: '麦克风', menu: 'audioinput', audio: true },
-    { key: 'camera', icon: 'camera', label: '摄像头', menu: 'videoinput' },
-    { key: 'cursor', icon: 'cursor', label: '鼠标设置', menu: 'cursor' },
+    { key: 'speaker', icon: 'speaker', label: 'rec.speaker', menu: null, audio: true },
+    { key: 'mic', icon: 'mic', label: 'rec.mic', menu: 'audioinput', audio: true },
+    { key: 'camera', icon: 'camera', label: 'rec.camera', menu: 'videoinput' },
+    { key: 'cursor', icon: 'cursor', label: 'rec.cursor', menu: 'cursor' },
   ];
 
   const CURSOR_OPTIONS = [
-    { key: 'mouseHighlight', label: '鼠标高亮' },
-    { key: 'clickEffect', label: '增加点击效果' },
+    { key: 'mouseHighlight', label: 'rec.mouseHighlight' },
+    { key: 'clickEffect', label: 'rec.clickEffect' },
   ];
 
   function create(root, options) {
     const el = document.createElement('div');
     el.className = 'recpanel hidden';
     el.innerHTML = `
-      <button class="rec-start" type="button">开始录制</button>
+      <button class="rec-start" type="button">${T('rec.start')}</button>
       <div class="rec-body">
-        <span class="rec-label">选择格式</span>
+        <span class="rec-label">${T('rec.format')}</span>
         <button class="rec-radio is-on" data-format="mp4" type="button">
           <i class="dot"></i><span>MP4</span>
         </button>
@@ -74,12 +78,12 @@ window.TookRecordPanel = (() => {
       (d) => `
       <div class="dev" data-key="${d.key}">
         <div class="dev-hit">
-          <button class="dev-icon" type="button" title="${d.label}">
+          <button class="dev-icon" type="button" title="${T(d.label)}">
             ${Icons[d.icon]}<span class="slash"></span>
           </button>
           ${d.menu ? `<button class="dev-caret" type="button">${Icons.chevron}</button>` : ''}
         </div>
-        <span class="dev-name">${d.label}</span>
+        <span class="dev-name">${T(d.label)}</span>
       </div>`
     ).join('');
   }
@@ -181,7 +185,7 @@ window.TookRecordPanel = (() => {
     return CURSOR_OPTIONS.map(
       (o) => `
       <div class="menu-item check" data-option="${o.key}">
-        <i class="box${panel.state[o.key] ? ' on' : ''}"></i><span>${o.label}</span>
+        <i class="box${panel.state[o.key] ? ' on' : ''}"></i><span>${T(o.label)}</span>
       </div>`
     ).join('');
   }
@@ -191,16 +195,16 @@ window.TookRecordPanel = (() => {
     const selectedId = def.key === 'mic' ? panel.state.micId : panel.state.cameraId;
 
     if (!list.length) {
-      return '<div class="menu-head">选择设备</div><div class="menu-empty">没有找到设备</div>';
+      return `<div class="menu-head">${T('rec.pickDevice')}</div><div class="menu-empty">${T('rec.noDevice')}</div>`;
     }
 
     return (
-      '<div class="menu-head">选择设备</div>' +
+      `<div class="menu-head">${T('rec.pickDevice')}</div>` +
       list
         .map(
           (d, i) => `
         <div class="menu-item" data-id="${d.deviceId}">
-          <span>${escapeHtml(d.label || `${def.key === 'mic' ? '麦克风' : '摄像头'} ${i + 1}`)}</span>
+          <span>${escapeHtml(d.label || T('rec.deviceFallback', { kind: T(def.key === 'mic' ? 'rec.mic' : 'rec.camera'), index: i + 1 }))}</span>
           ${d.deviceId === selectedId ? '<i class="tick"></i>' : ''}
         </div>`
         )
