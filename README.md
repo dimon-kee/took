@@ -1,208 +1,219 @@
-# Took — 截图 / 录屏
+# Took — screenshots & screen recording
 
-Windows 桌面端截图标注 + 区域录屏工具,Electron 实现。
+English · [简体中文](README.zh-CN.md)
 
-## 跑起来
+A Windows screenshot-and-annotate plus region-recording tool, built on Electron.
+
+## Running it
 
 ```bash
 task install
 task dev
 ```
 
-`task` 不带参数会列出全部命令。常用的:
+`task` with no arguments lists everything. The ones you will use:
 
-| 命令 | 作用 |
+| Command | What it does |
 | --- | --- |
-| `task dev` / `task d` | 启动 |
-| `task stop` / `task s` | 停掉(常驻托盘,关窗口是关不掉的) |
-| `task restart` / `task r` | 重启 |
-| `task preview` / `task p` | 渲染取景层各状态到 `.preview/` |
-| `task check` / `task c` | 跑全部自检 |
-| `task dist` | 打包成 Windows 安装程序,产物在 `dist/` |
+| `task dev` / `task d` | Start the app |
+| `task stop` / `task s` | Kill it (it lives in the tray, so closing a window will not) |
+| `task restart` / `task r` | Stop, then start |
+| `task preview` / `task p` | Render the overlay's states into `.preview/` |
+| `task check` / `task c` | Run every self-check |
+| `task dist` | Build the Windows installer into `dist/` |
 
-没装 go-task 的话,`npm start` / `npm run dev` / `npm run dist` 也都在。
+Without go-task installed, `npm start` / `npm run dev` / `npm run dist` work too.
 
-## 开机自启
+## Start with Windows
 
-托盘菜单里的「开机自启」可以直接勾,或者:
+Tick "开机自启" in the tray menu, or:
 
 ```bash
 task autostart:on
 ```
 
-写的是 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 下一个叫 `Took` 的值,只影响当前用户,不需要管理员权限。`task autostart` 看当前状态,`task autostart:off` 取消。
+This writes a value named `Took` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` — current user only, no admin rights needed. `task autostart` reports the current state and `task autostart:off` removes it.
 
-开机后应用直接进托盘,不弹任何窗口。
+At boot the app goes straight to the tray without opening a window.
 
-> 未打包时注册的命令是 `electron.exe <项目目录>`,依赖 `node_modules` 还在。跑过 `task dist` 装了打包版之后,重新开一次开关,注册表会指向安装好的 exe —— 两边共用同一个注册表值,不会留下两条开机项。
+> Unpackaged, the registered command is `electron.exe <project dir>`, which depends on `node_modules` still being there. After `task dist` and installing the packaged build, toggle the setting off and on once so the registry points at the installed exe — both share one registry value, so you never end up with two start-up entries.
 
-## 快捷键
+## Hotkeys
 
-| 键 | 作用 |
+| Key | Action |
 | --- | --- |
-| `Ctrl + Shift + S` | 唤起截图 |
-| `Ctrl + Shift + R` | 唤起录屏 |
+| `Ctrl + Shift + S` | Screenshot |
+| `Ctrl + Shift + R` | Screen recording |
 
-这两个是默认值，托盘菜单的「设置…」里可以改，见下面的[设置](#设置)。
+Those are the defaults; both can be changed from the tray menu's settings window — see [Settings](#settings).
 
-应用平时不显示任何窗口,只在系统托盘驻留。按下快捷键才会把整个屏幕冻住,顶部浮出 `⋮⋮ 截图 │ 录屏` 模式条,截完或录完就全部消失。模式条可以拖动,选中任意标注工具后会自动让位。
+The app shows no window at all until a hotkey fires. Then the whole screen freezes and a `⋮⋮ 截图 │ 录屏` mode bar floats in at the top; everything disappears once you finish. The bar can be dragged, and it steps out of the way as soon as you pick an annotation tool.
 
-## 截图
+## Screenshots
 
-冻屏后跟着鼠标的是像素放大镜:
+A pixel loupe follows the cursor across the frozen screen.
 
-弹出来的一瞬间**整块屏幕就已经是预选中状态** —— 不变暗,四周有细边框,左上角显示尺寸。
+The moment it opens **the whole display is already selected** — no dim, a thin border, the size shown in the corner.
 
-- **单击**确认整屏,`Ctrl + A` 同效
-- **拖动**则覆盖掉这个默认值,自己框选;左上角实时显示 `宽 x 高`
+- **Click** to accept the full screen; `Ctrl + A` does the same
+- **Drag** to replace that default with your own region; the corner shows `width x height` live
 
-点击时手抖一两个像素不会把预选打散 —— 指针真正移动超过阈值才算拖动。
+A one or two pixel shake during a click will not break the pre-selection — the pointer has to travel past a threshold before it counts as a drag.
 
-- 选区确定后八个控制点可以调整边界,框内拖动可整体移动
-- 方向键微调位置,`Shift + 方向键` 微调尺寸
+- Once a region is set, eight handles adjust the edges and dragging inside moves the whole box
+- Arrow keys nudge the position, `Shift + arrows` nudge the size
 
-### 取色
+### Colour picking
 
-选区还没画出来时,放大镜显示光标处的坐标和颜色:
+Before a region is drawn, the loupe reports the coordinate and colour under the cursor:
 
-- `Ctrl + C` 复制色值
-- `Shift` 在 `RGB:255,255,255` 和 `HEX:#FFFFFF` 之间切换
+- `Ctrl + C` copies the value
+- `Shift` switches between `RGB:255,255,255` and `HEX:#FFFFFF`
 
-十字准星在截图模式是蓝色,切到录屏模式变粉色。
+The crosshair is blue in screenshot mode and pink in recording mode.
 
-### 标注
+### Annotation
 
-选区确定后下方出现工具栏,右边缘和选区对齐。
+A toolbar appears below the region, aligned to its right edge.
 
-绘制类:矩形、椭圆、直线、箭头、画笔、文字、荧光笔
-处理类:马赛克、模糊、橡皮擦(点一下删掉那一笔)
-输出类:贴图到屏幕、识别二维码、撤销、保存、取消、完成
+Drawing: rectangle, ellipse, line, arrow, pen, text, highlighter
+Processing: mosaic, blur, eraser (click a stroke to remove it)
+Output: pin to screen, decode QR, undo, save, cancel, done
 
-选中任意绘制工具会展开二级栏:三档笔画粗细 + 七种颜色。文字工具的字号跟着粗细档位走。
+Picking any drawing tool opens a second row: three stroke widths and seven colours. The text tool's size follows the width setting.
 
-| 键 | 作用 |
+| Key | Action |
 | --- | --- |
-| `Enter` | 完成,复制到剪贴板 |
-| `Ctrl + S` | 另存为 PNG |
-| `Ctrl + Z` | 撤销上一笔 |
-| `Ctrl + C` | 复制到剪贴板 |
-| `Esc` | 退出当前工具,再按一次取消截图 |
-| 右键 | 逐级后退:取消工具 → 取消选区 → 退出 |
+| `Enter` | Done — copy to clipboard |
+| `Ctrl + S` | Save as PNG |
+| `Ctrl + Z` | Undo the last stroke |
+| `Ctrl + C` | Copy to clipboard |
+| `Esc` | Drop the current tool; again to cancel the capture |
+| Right click | Step back: tool → region → exit |
 
-二维码识别读的是原始像素,所以糊在上面的标注不会干扰结果。
+QR decoding reads the untouched pixels, so annotations drawn on top do not interfere.
 
-### 贴图
+### Pinning
 
-工具栏的图钉把选区钉成一个置顶小窗,停在原位置。拖动移动,滚轮调透明度,鼠标移上去右上角出现复制 / 保存 / 关闭,双击或 `Esc` 关掉。
+The pin in the toolbar turns the region into an always-on-top window that stays where it was. Drag to move, scroll to change opacity, hover for copy / save / close in the corner, double-click or `Esc` to dismiss.
 
-## 录屏
+## Screen recording
 
-切到「录屏」后选区方式和截图完全一样,确定后选区中央浮出设置卡片:
+Switching to 录屏 keeps the same region selection. Once a region is set, a setup card appears in the middle of it:
 
-- **开始录制**
-- **选择格式**:MP4 或 GIF
-- **扬声器**:系统声音,走桌面回环采集
-- **麦克风**:点图标开关,点箭头选设备
-- **摄像头**:同上,打开后选区左下角出现画中画
-- **鼠标设置**:箭头里是 `鼠标高亮` 和 `增加点击效果` 两个勾选项
+- **开始录制** — start recording
+- **选择格式** — MP4 or GIF
+- **扬声器** — system audio, captured through desktop loopback
+- **麦克风** — click the icon to toggle, the caret to pick a device
+- **摄像头** — same, and a picture-in-picture bubble appears in the bottom-left of the region
+- **鼠标设置** — the caret holds `鼠标高亮` (cursor highlight) and `增加点击效果` (click ripples)
 
-选 GIF 时音频那一排会整体收起 —— GIF 没有声音轨。
+Choosing GIF collapses the audio row entirely — a GIF carries no audio track.
 
-### 摄像头画中画
+### The webcam bubble
 
-画中画是一个独立的置顶窗口,不是合成进画面的图层。所以它可以随便拖动、缩放,录制时也一直在,屏幕采集会自然把它录进去。
+The bubble is a separate always-on-top window, not a layer composited into the frame. That is what lets you drag and resize it freely, and it keeps working during the recording because the screen grab picks it up on its own.
 
-鼠标移上去底部出现工具条:圆角矩形 / 圆形两种形状,齿轮里是 `镜像`、`美颜`、`背景虚化`。
+Hovering reveals a toolbar: rounded-rectangle or circle shape, and a gear holding `镜像` (mirror), `美颜` (soften) and `背景虚化` (background blur).
 
-> `背景虚化` 走的是 Chromium 的 `backgroundBlur` 轨道能力,需要摄像头和系统本身支持。探测不到时这一项会置灰,不会用软件方案硬顶 —— 那需要额外拉一个几 MB 的人像分割模型。`镜像` 和 `美颜` 无条件可用。
+> `背景虚化` uses Chromium's `backgroundBlur` track capability, which needs support from both the camera and the OS. When it cannot be detected the option is greyed out rather than faked in software — doing that properly would mean shipping a multi-megabyte segmentation model. `镜像` and `美颜` always work.
 
-### 录制中
+### While recording
 
-选区旁边出现控制条:`⋮⋮ ⏸ 00:00:05 / 01:00:00 [结束录制] ✕`
+A control bar sits beside the region: `⋮⋮ ⏸ 00:00:05 / 01:00:00 [结束录制] ✕`
 
-空格暂停 / 继续,`Enter` 结束,`Esc` 放弃。上限一小时,到点自动停。
+Space pauses and resumes, `Enter` finishes, `Esc` discards. One hour is the cap, after which it stops on its own.
 
-### 编辑录屏
+### The editor window
 
-录完弹出 `编辑录屏` 窗口:播放器 + 进度条 + `下载` + `复制到剪贴板`。文件先落在临时目录,你决定了再存。
+When you stop, an `编辑录屏` window opens: player, scrubber, `下载` (save) and `复制到剪贴板` (copy). The file sits in a temp directory until you decide where it goes.
 
-复制到剪贴板对 MP4 是文件引用(能粘到资源管理器、聊天软件),GIF 会额外写一份位图。
+Copying an MP4 puts a file reference on the clipboard, which pastes into Explorer and chat apps; a GIF additionally goes on as a bitmap.
 
-> 当前版本只有预览和导出,没有裁剪时间轴。
+> This version previews and exports only — there is no trim timeline.
 
-## 输出格式
+## Output formats
 
-| | 编码 | 说明 |
+| | Codec | Notes |
 | --- | --- | --- |
-| MP4 | H.264 + AAC | MediaRecorder 原生支持,不需要外挂 ffmpeg |
-| GIF | gifenc | 10fps,最宽 640px,整段共用一份 256 色调色板 |
+| MP4 | H.264 + AAC | Native to MediaRecorder, no ffmpeg needed |
+| GIF | gifenc | 10fps, 640px wide at most, one 256-colour palette for the whole clip |
 
-截图统一输出 PNG,**原生分辨率**。125% 缩放的 1920×1080 屏上,截出来是实打实的 1920×1080,不是 1536×864 放大的。
+Screenshots are always PNG at **native resolution**. On a 1920×1080 screen at 125% scaling you get a real 1920×1080 image, not an upscaled 1536×864 one.
 
-## 设置
+## Settings
 
-托盘菜单 →「设置…」。
+Tray menu → 设置…
 
-**快捷键** —— 点一下输入框,直接按下想要的组合。至少要带一个修饰键,不然那个键会被全局吞掉。组合被别的程序占用时会标红提示,并且**整份设置都不保存** —— 不会让你落到一半快捷键失灵的状态。每行右边有「恢复默认」。
+**Hotkeys** — click the field and press the combination you want. At least one modifier is required, otherwise that key would be swallowed system-wide. If a combination is already taken by another program the row turns red and **nothing is saved at all** — you never end up with half your hotkeys broken. Each row has a reset link.
 
-**保存位置** —— 截图和录屏的「另存为」默认落在这里,托盘的「打开保存目录」也跳这里。默认是 `图片/Took/`。选新目录时会先试写一个探针文件,写不进去就当场拒绝,不会等你截完图才发现存不了。
+**Save location** — where the save dialogs for screenshots and recordings start, and where the tray's "打开保存目录" goes. Defaults to `Pictures/Took/`. A new directory is probe-written before it is accepted, so an unwritable path is rejected on the spot rather than when you try to save a capture.
 
-配置存在 `%APPDATA%\Took\settings.json`。文件损坏或丢失会静默退回默认值,不会启动失败。目录如果后来失效了(移动硬盘拔了、文件夹被删),自动退回 `图片/Took`,截图不会因此丢掉。
+Settings live in `%APPDATA%\Took\settings.json`. A corrupt or missing file falls back to defaults instead of failing to start. If the directory later disappears — external drive unplugged, folder deleted — captures fall back to `Pictures/Took` rather than being lost.
 
-## 代码结构
+## Layout
 
 ```
 src/
-├── main/            主进程
-│   ├── index.js       生命周期、托盘、全局快捷键、所有 IPC
-│   ├── capture.js     desktopCapturer 抓取每块屏幕的原生分辨率位图
-│   ├── cursor.js      全局鼠标位置 + 点击边沿(koffi → user32)
-│   └── windows.js     各类窗口的构造
-├── preload/         各窗口的 contextBridge 桥接
+├── main/                main process
+│   ├── index.js           lifecycle, tray, global hotkeys, all IPC
+│   ├── capture.js         describes displays; PNG fallback capture
+│   ├── screens.js         cached desktopCapturer source IDs
+│   ├── settings.js        persisted preferences
+│   ├── cursor.js          global pointer position + click edges (koffi → user32)
+│   ├── autolaunch.js      start-with-Windows registration
+│   ├── win32.js           Win32 bits Electron does not expose
+│   └── windows.js         window construction
+├── preload/             contextBridge for each window
 └── renderer/
-    ├── overlay/       取景层(核心)
-    │   ├── overlay.js      状态机、事件、渲染调度、输出合成
-    │   ├── shapes.js       标注图元的绘制与命中测试
-    │   ├── magnifier.js    像素放大镜
-    │   ├── recordpanel.js  录制设置卡片
-    │   └── icons.js        工具栏图标
-    ├── recorder/      隐藏的录制工作窗口
-    ├── recordbar/     录制控制条
-    ├── webcam/        摄像头画中画
-    ├── editor/        编辑录屏
-    └── pin/           贴图窗口
+    ├── overlay/           the capture overlay (the core)
+    │   ├── overlay.js       state machine, events, render scheduling, export
+    │   ├── shapes.js        annotation primitives and hit testing
+    │   ├── magnifier.js     pixel loupe
+    │   ├── recordpanel.js   recording setup card
+    │   └── icons.js         toolbar icons
+    ├── recorder/          hidden worker window that owns the capture
+    ├── recordbar/         recording control bar
+    ├── webcam/            webcam bubble
+    ├── editor/            post-recording preview
+    ├── settings/          settings window
+    └── pin/               pinned screenshot window
 ```
 
-### 几个设计点
+### Design notes
 
-**取景层用四张画布叠出来**:`base` 冻结的截屏(只画一次)、`mask` 变暗层(在选区位置挖洞)、`shapes` 已提交的标注、`live` 正在画的那一笔和选框。每层各自标脏,一个 rAF 统一刷,拖动时不会整屏重绘。
+**The overlay is four stacked canvases**: `base` for the frozen screenshot (drawn once), `mask` for the dim with a hole at the selection, `shapes` for committed annotations, and `live` for the stroke in progress plus the selection chrome. Each is marked dirty independently and flushed by a single rAF, so dragging never repaints the whole screen.
 
-**坐标一律用 CSS 像素记**,画布的 backing store 保持屏幕原生分辨率,靠 `ctx.setTransform(ratio, …)` 桥接。高 DPI 屏上导出的图因此是原生分辨率。
+**Coordinates are kept in CSS pixels** while the canvases' backing stores stay at the display's native resolution, bridged by `ctx.setTransform(ratio, …)`. That is why exports on a high-DPI screen come out native.
 
-**截图不走 desktopCapturer 的热路径**。`desktopCapturer.getSources` 在 Windows 上要 ~1 秒,而且和缩略图尺寸无关 —— 贵的是枚举本身,不是抓像素。所以源 ID 在启动时预解析一次并缓存(显示器变化时刷新),取景层拿到 ID 后自己从 MediaStream 里抓一帧。这样既绕开了枚举,也省掉了主进程 PNG 编码、几 MB 的 IPC 传图和渲染端解码。
+**Screenshots avoid desktopCapturer on the hot path.** `desktopCapturer.getSources` costs about a second on Windows regardless of thumbnail size — the enumeration is expensive, not the pixels. Source IDs are resolved once at startup and cached (refreshed when the display layout changes); the overlay then grabs its own frame from a MediaStream. That skips the enumeration as well as a PNG encode in main, a multi-megabyte IPC payload and a decode in the renderer.
 
-按下快捷键到画面出现约 600ms,改之前是 1900ms。`task check:latency` 可以量,顺带校验抓到的不是黑帧。
+Hotkey to visible is about 600ms, down from 1900ms. `task check:latency` measures it and checks the grabbed frame is not blank.
 
-**覆盖层是透明窗口,不是黑底窗口**。Windows 会在渲染进程的画面上屏之前先刷一次窗口背景,全屏窗口上这一帧非常明显 —— `task check:flash` 量到过亮度从 31 掉到 2。没有背景刷可画,那一帧显示的就是真实桌面,和即将盖上去的截图一模一样。同时用 `DwmSetWindowAttribute` 关掉了开窗动画。
+**The overlay window is transparent, not black.** Windows paints a window's background brush before the renderer's surface reaches the screen, and on a fullscreen window that frame is very visible — `task check:flash` measured luminance dropping from 31 to 2. With no brush to paint, that frame shows the real desktop, which is indistinguishable from the screenshot about to replace it. Open and close animations are disabled via `DwmSetWindowAttribute`.
 
-**录屏没有原生裁剪**:抓整屏的 MediaStream,把选区那块逐帧画进一张 canvas,再录这张 canvas。鼠标高亮和点击涟漪也画在这一步。
+**Recording has no native cropping**: the whole screen comes in as a MediaStream, the selected region is redrawn frame by frame into a canvas, and that canvas is recorded. Cursor highlight and click ripples are painted in the same step.
 
-**点击检测没法靠 Electron**:它只给光标位置,不给按键。所以用 koffi 调 `user32!GetAsyncKeyState` 按 60Hz 轮询左键,在主进程做边沿检测后推给录制窗口。FFI 加载失败时会降级成只有高亮、没有点击效果。
+**Click detection cannot come from Electron**, which exposes the pointer position but not button state. koffi polls `user32!GetAsyncKeyState` at 60Hz, main does the edge detection and pushes it to the recorder. If the FFI binding fails to load it degrades to highlight only, with no click effect.
 
-## 开发工具
+## Development tools
 
-`tools/` 下面的脚本都有对应的 task:
+Everything under `tools/` has a matching task:
 
-| 脚本 | task | 用途 |
+| Script | Task | Purpose |
 | --- | --- | --- |
-| `preview-ui.js` | `task preview` | 用合成的假桌面渲染取景层的各个状态,输出 PNG。取景层是全屏置顶的,出了问题挂不上 DevTools,改 UI 后用它自查 |
-| `preview-settings.js` | `task preview` | 渲染设置窗口,含按键录制中和快捷键冲突两种状态 |
-| `check-settings.js` | `task check:settings` | 校验配置读写、保存目录失效时的退回、快捷键冲突时的回滚 |
-| `check-latency.js` | `task check:latency` | 量从快捷键到画面可见的耗时，并确认抓到的帧不是黑的 |
-| `check-capture-speed.js` | `task check:capture-speed` | 拆解 desktopCapturer 慢在哪，和 MediaStream 抓帧对比。截图为什么不走 desktopCapturer 的依据 |
-| `check-flash.js` | `task check:flash` | 录下覆盖层出现的过程逐帧测亮度，把「闪一下」变成可复测的数字 |
-| `check-capture.js` | `task check:capture` | 报告每块屏幕的尺寸、缩放和实际抓取分辨率 |
-| `check-media.js` | `task check:media` | 探测 MediaRecorder 支持哪些容器/编码、系统声音能不能抓、有几个摄像头麦克风 |
-| `check-record.js` | `task check:record` | 端到端实录几秒,校验 MP4 / GIF 的容器结构和帧数,确认不是黑帧。跑完自动删掉录出来的临时文件 |
-| `make-icons.js` | `task icons` | 从代码生成 `assets/` 里的图标 PNG,仓库不存二进制素材 |
-| `autostart.js` | `task autostart[:on\|:off]` | 开机自启的开关和状态 |
+| `preview-ui.js` | `task preview` | Renders every overlay state against a synthetic desktop as PNGs. The overlay is fullscreen and always-on-top, so DevTools is not an option — this is how UI changes get checked |
+| `preview-settings.js` | `task preview` | Renders the settings window, including the key-capture and hotkey-clash states |
+| `check-settings.js` | `task check:settings` | Exercises the settings store, the save-path fallback and the hotkey conflict rollback |
+| `check-latency.js` | `task check:latency` | Times the hotkey-to-overlay path and confirms the grabbed frame is not blank |
+| `check-capture-speed.js` | `task check:capture-speed` | Breaks down where desktopCapturer spends its time versus a MediaStream frame grab — the evidence for not using it on the hot path |
+| `check-flash.js` | `task check:flash` | Films the overlay appearing and measures per-frame luminance, turning "it flashes" into a number |
+| `check-capture.js` | `task check:capture` | Reports each display's size, scale factor and the resolution actually captured |
+| `check-media.js` | `task check:media` | Probes MediaRecorder codecs, desktop loopback audio and available devices |
+| `check-record.js` | `task check:record` | Records a few seconds end to end and verifies MP4 / GIF container structure and frame count. Deletes the clips afterwards |
+| `make-icons.js` | `task icons` | Generates the icon PNGs in `assets/` from code, so the repository carries no binary art |
+| `autostart.js` | `task autostart[:on\|:off]` | Start-with-Windows toggle and status |
+
+## Licence
+
+[MIT](LICENSE)

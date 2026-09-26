@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "截图 / 录屏工具",
   "main": "src/main/index.js",
-  "author": "keeyo",
+  "author": "dimonkyk",
   "license": "MIT",
   "scripts": {
     "postinstall": "node tools/make-icons.js",
