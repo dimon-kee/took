@@ -222,10 +222,37 @@ function createWebcamWindow({ deviceId, bounds }) {
   return win;
 }
 
+function createSettingsWindow() {
+  const win = new BrowserWindow({
+    width: 560,
+    height: 470,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    title: '设置',
+    backgroundColor: '#1c1c20',
+    show: false,
+    webPreferences: {
+      preload: path.join(PRELOAD, 'settings.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  win.setMenuBarVisibility(false);
+  win.loadFile(path.join(RENDERER, 'settings', 'index.html'));
+  win.once('ready-to-show', () => win.show());
+
+  return win;
+}
+
 module.exports = {
   createOverlayWindow,
   createEditorWindow,
   createWebcamWindow,
+  createSettingsWindow,
   createPinWindow,
   createRecorderWindow,
   createRecordBarWindow,

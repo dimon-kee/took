@@ -1,0 +1,101 @@
+'use strict';
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { app } = require('electron');
+
+/**
+ * User preferences, persisted as JSON in the app's userData directory.
+ *
+ * Reads are served from memory; every write goes straight to disk so a crash
+ * cannot lose a setting the user just changed.
+ */
+
+const DEFAULTS = {
+  shortcuts: {
+    capture: 'CommandOrControl+Shift+S',
+    record: 'CommandOrControl+Shift+R',
+  },
+  // null means "wherever defaultSaveDir() lands", i.e. 图片/Took
+  saveDir: null,
+};
+
+let cache = null;
+
+function file() {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+function load() {
+  if (cache) return cache;
+
+  try {
+    const raw = JSON.parse(fs.readFileSync(file(), 'utf8'));
+    cache = {
+      shortcuts: { ...DEFAULTS.shortcuts, ...(raw.shortcuts || {}) },
+      saveDir: typeof raw.saveDir === 'string' && raw.saveDir ? raw.saveDir : null,
+    };
+  } catch {
+    // Missing or corrupt — fall back to defaults rather than refusing to start.
+    cache = structuredClone(DEFAULTS);
+  }
+  return cache;
+}
+
+function get() {
+  return structuredClone(load());
+}
+
+function set(patch) {
+  const next = load();
+
+  if (patch.shortcuts) Object.assign(next.shortcuts, patch.shortcuts);
+  if ('saveDir' in patch) next.saveDir = patch.saveDir || null;
+
+  try {
+    fs.mkdirSync(path.dirname(file()), { recursive: true });
+    fs.writeFileSync(file(), JSON.stringify(next, null, 2), 'utf8');
+  } catch (err) {
+    console.error('[took] 写入设置失败:', err);
+  }
+  return get();
+}
+
+/** Where captures land. Falls back to 图片/Took, then the home directory. */
+function saveDir() {
+  const configured = load().saveDir;
+  if (configured) {
+    try {
+      fs.mkdirSync(configured, { recursive: true });
+      return configured;
+    } catch (err) {
+      // Drive unplugged, folder deleted, permissions changed — do not lose the
+      // capture over it, just fall back.
+      console.warn('[took] 保存目录不可用，退回默认:', err.message);
+    }
+  }
+
+  try {
+    const dir = path.join(app.getPath('pictures'), 'Took');
+    fs.mkdirSync(dir, { recursive: true });
+    return dir;
+  } catch {
+    return os.homedir();
+  }
+}
+
+/** Can we actually write there? Used to validate before accepting a new path. */
+function checkWritable(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const probe = path.join(dir, `.took-write-test-${process.pid}`);
+    fs.writeFileSync(probe, '');
+    fs.unlinkSync(probe);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, message: err.message };
+  }
+}
+
+module.exports = { DEFAULTS, get, set, saveDir, checkWritable, file };

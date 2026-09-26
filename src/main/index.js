@@ -2,7 +2,6 @@
 
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 const {
   app,
   BrowserWindow,
@@ -23,6 +22,7 @@ const { pathToFileURL } = require('url');
 const { captureAllDisplays } = require('./capture');
 const cursorTracker = require('./cursor');
 const autoLaunch = require('./autolaunch');
+const settings = require('./settings');
 const {
   createOverlayWindow,
   createPinWindow,
@@ -30,6 +30,7 @@ const {
   createRecordBarWindow,
   createEditorWindow,
   createWebcamWindow,
+  createSettingsWindow,
 } = require('./windows');
 
 // Unpackaged, the app name would default to "Electron" — which also becomes the
@@ -37,8 +38,10 @@ const {
 // one registry entry instead of leaving two start-up items behind.
 app.setName('Took');
 
-const SHORTCUT_CAPTURE = 'CommandOrControl+Shift+S';
-const SHORTCUT_RECORD = 'CommandOrControl+Shift+R';
+const SHORTCUT_ACTIONS = {
+  capture: () => startCapture(),
+  record: () => startRecordSelection(),
+};
 
 // Overlay windows are transient and impossible to attach DevTools to mid-drag,
 // so surface their warnings and errors on the terminal instead.
@@ -58,6 +61,7 @@ app.on('web-contents-created', (_e, contents) => {
 /** @type {BrowserWindow|null} */ let recordBarWin = null;
 /** @type {BrowserWindow|null} */ let editorWin = null;
 /** @type {BrowserWindow|null} */ let webcamWin = null;
+/** @type {BrowserWindow|null} */ let settingsWin = null;
 /** @type {Tray|null} */ let tray = null;
 /** @type {Set<BrowserWindow>} */ const pinWins = new Set();
 
@@ -81,7 +85,7 @@ app.on('window-all-closed', () => {});
 app.whenReady().then(() => {
   autoLaunch.refresh();
   setupTray();
-  registerShortcuts();
+  applyShortcuts();
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
@@ -111,10 +115,11 @@ function refreshTrayMenu() {
 
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: `截图  ${prettyKey(SHORTCUT_CAPTURE)}`, click: () => startCapture() },
-      { label: `录屏  ${prettyKey(SHORTCUT_RECORD)}`, click: () => startRecordSelection() },
+      { label: `截图  ${prettyKey(shortcutFor('capture'))}`, click: () => startCapture() },
+      { label: `录屏  ${prettyKey(shortcutFor('record'))}`, click: () => startRecordSelection() },
       { type: 'separator' },
-      { label: '打开保存目录', click: () => shell.openPath(defaultSaveDir()) },
+      { label: '设置…', click: () => openSettings() },
+      { label: '打开保存目录', click: () => shell.openPath(settings.saveDir()) },
       {
         label: '开机自启',
         type: 'checkbox',
@@ -131,15 +136,44 @@ function refreshTrayMenu() {
 }
 
 function prettyKey(accel) {
-  return accel.replace('CommandOrControl', 'Ctrl').replace(/\+/g, ' + ');
+  return String(accel)
+    .replace('CommandOrControl', 'Ctrl')
+    .replace('Super', 'Win')
+    .replace(/\+/g, ' + ');
 }
 
-function registerShortcuts() {
-  const ok = globalShortcut.register(SHORTCUT_CAPTURE, () => startCapture());
-  const okRec = globalShortcut.register(SHORTCUT_RECORD, () => startRecordSelection());
+function shortcutFor(action) {
+  return settings.get().shortcuts[action];
+}
 
-  if (!ok) console.warn(`[took] 无法注册快捷键 ${SHORTCUT_CAPTURE},可能被其他程序占用`);
-  if (!okRec) console.warn(`[took] 无法注册快捷键 ${SHORTCUT_RECORD},可能被其他程序占用`);
+/**
+ * (Re)register the global hotkeys.
+ * @returns the actions whose accelerator was refused — almost always because
+ *          another program already owns that combination.
+ */
+function applyShortcuts() {
+  globalShortcut.unregisterAll();
+
+  const configured = settings.get().shortcuts;
+  const conflicts = [];
+
+  Object.entries(SHORTCUT_ACTIONS).forEach(([action, handler]) => {
+    const accelerator = configured[action];
+    let ok = false;
+    try {
+      ok = globalShortcut.register(accelerator, handler);
+    } catch (err) {
+      // A malformed accelerator throws instead of returning false.
+      console.warn(`[took] 快捷键 ${accelerator} 无效:`, err.message);
+    }
+
+    if (!ok) {
+      conflicts.push(action);
+      console.warn(`[took] 无法注册快捷键 ${accelerator}，可能被其他程序占用`);
+    }
+  });
+
+  return conflicts;
 }
 
 // ---------------------------------------------------------------------------
@@ -254,7 +288,7 @@ ipcMain.handle('overlay:save', async (event, dataURL) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: '保存截图',
-    defaultPath: path.join(defaultSaveDir(), `截图_${stamp()}.png`),
+    defaultPath: path.join(settings.saveDir(), `截图_${stamp()}.png`),
     filters: [{ name: 'PNG 图片', extensions: ['png'] }],
   });
 
@@ -306,7 +340,7 @@ ipcMain.handle('pin:save', async (event, dataURL) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: '保存截图',
-    defaultPath: path.join(defaultSaveDir(), `截图_${stamp()}.png`),
+    defaultPath: path.join(settings.saveDir(), `截图_${stamp()}.png`),
     filters: [{ name: 'PNG 图片', extensions: ['png'] }],
   });
   if (canceled || !filePath) return false;
@@ -482,7 +516,7 @@ ipcMain.handle('editor:save', async (event) => {
 
   const { canceled, filePath } = await dialog.showSaveDialog(win, {
     title: '保存录屏',
-    defaultPath: path.join(defaultSaveDir(), `录屏_${stamp()}.${lastClip.ext}`),
+    defaultPath: path.join(settings.saveDir(), `录屏_${stamp()}.${lastClip.ext}`),
     filters: [{ name: describeFormat(lastClip.ext), extensions: [lastClip.ext] }],
   });
 
@@ -553,17 +587,73 @@ function teardownRecording() {
 }
 
 // ---------------------------------------------------------------------------
+// IPC — settings
+// ---------------------------------------------------------------------------
 
-function defaultSaveDir() {
-  try {
-    const pictures = app.getPath('pictures');
-    const dir = path.join(pictures, 'Took');
-    fs.mkdirSync(dir, { recursive: true });
-    return dir;
-  } catch {
-    return os.homedir();
+function openSettings() {
+  if (settingsWin && !settingsWin.isDestroyed()) {
+    settingsWin.show();
+    settingsWin.focus();
+    return;
   }
+
+  settingsWin = createSettingsWindow();
+  settingsWin.once('closed', () => {
+    settingsWin = null;
+  });
 }
+
+ipcMain.handle('settings:load', () => ({
+  settings: settings.get(),
+  defaults: {
+    ...settings.DEFAULTS,
+    // What the placeholder path actually resolves to, so the field can show a
+    // real directory instead of an empty box.
+    saveDirLabel: settings.saveDir(),
+  },
+}));
+
+ipcMain.handle('settings:save', (event, next) => {
+  const previous = settings.get();
+
+  if (next.saveDir) {
+    const check = settings.checkWritable(next.saveDir);
+    if (!check.ok) return { ok: false, message: `这个目录写不进去：${check.message}` };
+  }
+
+  settings.set(next);
+  const conflicts = applyShortcuts();
+
+  if (conflicts.length) {
+    // Never leave the user with hotkeys that no longer fire.
+    settings.set(previous);
+    applyShortcuts();
+    refreshTrayMenu();
+    return { ok: false, conflicts };
+  }
+
+  refreshTrayMenu();
+  return { ok: true };
+});
+
+ipcMain.handle('settings:pick-dir', async (event, current) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+    title: '选择保存位置',
+    defaultPath: current || settings.saveDir(),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  return canceled || !filePaths.length ? null : filePaths[0];
+});
+
+ipcMain.on('settings:open-dir', () => shell.openPath(settings.saveDir()));
+
+ipcMain.on('settings:close', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && !win.isDestroyed()) win.close();
+});
+
+// ---------------------------------------------------------------------------
 
 function stamp() {
   const d = new Date();

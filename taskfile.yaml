@@ -80,7 +80,13 @@ tasks:
     desc: Render every overlay state against a synthetic desktop into .preview/
     cmds:
       - cmd: npx electron tools/preview-ui.js {{.PREVIEW_DIR}}
+      - cmd: npx electron tools/preview-settings.js {{.PREVIEW_DIR}}
     aliases: [p]
+
+  check:settings:
+    desc: Exercise the settings store, save-path fallback and hotkey conflict rollback
+    cmds:
+      - cmd: npx electron tools/check-settings.js
 
   check:capture:
     desc: Report each display's bounds, scale factor and the resolution actually captured
@@ -102,6 +108,7 @@ tasks:
   check:
     desc: Run every diagnostic
     cmds:
+      - task: check:settings
       - task: check:capture
       - task: check:media
       - task: check:record
