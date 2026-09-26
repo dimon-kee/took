@@ -178,6 +178,8 @@ src/
 
 按下快捷键到画面出现约 600ms,改之前是 1900ms。`task check:latency` 可以量,顺带校验抓到的不是黑帧。
 
+**覆盖层是透明窗口,不是黑底窗口**。Windows 会在渲染进程的画面上屏之前先刷一次窗口背景,全屏窗口上这一帧非常明显 —— `task check:flash` 量到过亮度从 31 掉到 2。没有背景刷可画,那一帧显示的就是真实桌面,和即将盖上去的截图一模一样。同时用 `DwmSetWindowAttribute` 关掉了开窗动画。
+
 **录屏没有原生裁剪**:抓整屏的 MediaStream,把选区那块逐帧画进一张 canvas,再录这张 canvas。鼠标高亮和点击涟漪也画在这一步。
 
 **点击检测没法靠 Electron**:它只给光标位置,不给按键。所以用 koffi 调 `user32!GetAsyncKeyState` 按 60Hz 轮询左键,在主进程做边沿检测后推给录制窗口。FFI 加载失败时会降级成只有高亮、没有点击效果。
@@ -193,6 +195,7 @@ src/
 | `check-settings.js` | `task check:settings` | 校验配置读写、保存目录失效时的退回、快捷键冲突时的回滚 |
 | `check-latency.js` | `task check:latency` | 量从快捷键到画面可见的耗时，并确认抓到的帧不是黑的 |
 | `check-capture-speed.js` | `task check:capture-speed` | 拆解 desktopCapturer 慢在哪，和 MediaStream 抓帧对比。截图为什么不走 desktopCapturer 的依据 |
+| `check-flash.js` | `task check:flash` | 录下覆盖层出现的过程逐帧测亮度，把「闪一下」变成可复测的数字 |
 | `check-capture.js` | `task check:capture` | 报告每块屏幕的尺寸、缩放和实际抓取分辨率 |
 | `check-media.js` | `task check:media` | 探测 MediaRecorder 支持哪些容器/编码、系统声音能不能抓、有几个摄像头麦克风 |
 | `check-record.js` | `task check:record` | 端到端实录几秒,校验 MP4 / GIF 的容器结构和帧数,确认不是黑帧。跑完自动删掉录出来的临时文件 |

@@ -98,6 +98,12 @@ tasks:
     cmds:
       - cmd: npx electron tools/check-capture-speed.js {{.CLI_ARGS | default 3}}
 
+  check:flash:
+    desc: Film the overlay appearing and check for a black frame
+    cmds:
+      # 会短暂弹出一个真实的覆盖层，几秒后自己消失。
+      - cmd: npx electron tools/check-flash.js
+
   check:capture:
     desc: Report each display's bounds, scale factor and the resolution actually captured
     cmds:

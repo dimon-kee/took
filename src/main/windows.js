@@ -2,13 +2,22 @@
 
 const path = require('path');
 const { BrowserWindow, screen } = require('electron');
+const win32 = require('./win32');
 
 const RENDERER = path.join(__dirname, '..', 'renderer');
 const PRELOAD = path.join(__dirname, '..', 'preload');
 
 /**
- * One opaque, borderless window pinned over each display. It renders the frozen
- * screenshot itself, so there is no live transparency to fight with on Windows.
+ * One borderless window pinned over each display, rendering the frozen
+ * screenshot itself.
+ *
+ * It is transparent rather than opaque-black on purpose. Windows paints a
+ * window's background brush for a frame or two before the renderer's surface
+ * reaches the screen, and on a fullscreen window a single black frame is very
+ * visible — measurably so: `task check:flash` caught luminance dropping to 2
+ * out of 31 for exactly one frame. With no brush to paint, that frame shows the
+ * real desktop instead, which is indistinguishable from the screenshot about to
+ * replace it.
  */
 function createOverlayWindow(shot) {
   const { bounds } = shot;
@@ -19,8 +28,8 @@ function createOverlayWindow(shot) {
     width: bounds.width,
     height: bounds.height,
     frame: false,
-    transparent: false,
-    backgroundColor: '#000000',
+    transparent: true,
+    backgroundColor: '#00000000',
     resizable: false,
     movable: false,
     minimizable: false,
@@ -42,6 +51,11 @@ function createOverlayWindow(shot) {
 
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+  // Must happen before the first show(): a fullscreen window fading and
+  // scaling into place reads as the app launching, not as the screen freezing.
+  win32.disableWindowAnimations(win);
+
   win.loadFile(path.join(RENDERER, 'overlay', 'index.html'));
 
   return win;

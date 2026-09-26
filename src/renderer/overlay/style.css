@@ -9,7 +9,9 @@ body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #000;
+  /* The window is transparent so no black frame can show before the canvas
+     lands; the base canvas paints the screenshot opaquely over it. */
+  background: transparent;
   cursor: crosshair;
   user-select: none;
   font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
