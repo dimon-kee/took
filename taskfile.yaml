@@ -88,6 +88,16 @@ tasks:
     cmds:
       - cmd: npx electron tools/check-settings.js
 
+  check:latency:
+    desc: Time the hotkey-to-overlay path, and confirm the grabbed frame is not blank
+    cmds:
+      - cmd: npx electron tools/check-latency.js {{.CLI_ARGS | default 3}}
+
+  check:capture-speed:
+    desc: Break down why desktopCapturer is slow, versus a MediaStream frame grab
+    cmds:
+      - cmd: npx electron tools/check-capture-speed.js {{.CLI_ARGS | default 3}}
+
   check:capture:
     desc: Report each display's bounds, scale factor and the resolution actually captured
     cmds:
@@ -110,6 +120,7 @@ tasks:
     cmds:
       - task: check:settings
       - task: check:capture
+      - task: check:latency
       - task: check:media
       - task: check:record
     aliases: [c]

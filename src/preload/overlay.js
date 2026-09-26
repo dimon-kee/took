@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('took', {
   /** Tells main the screenshot is painted, so the window can be revealed. */
   ready: () => ipcRenderer.send('overlay:ready'),
 
+  /** PNG fallback for when the MediaStream grab fails. */
+  fallbackShot: (displayId) => ipcRenderer.invoke('overlay:fallback-shot', displayId),
+
   claim: () => ipcRenderer.send('overlay:claim'),
   cancel: () => ipcRenderer.send('overlay:cancel'),
 

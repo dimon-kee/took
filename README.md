@@ -174,6 +174,10 @@ src/
 
 **坐标一律用 CSS 像素记**,画布的 backing store 保持屏幕原生分辨率,靠 `ctx.setTransform(ratio, …)` 桥接。高 DPI 屏上导出的图因此是原生分辨率。
 
+**截图不走 desktopCapturer 的热路径**。`desktopCapturer.getSources` 在 Windows 上要 ~1 秒,而且和缩略图尺寸无关 —— 贵的是枚举本身,不是抓像素。所以源 ID 在启动时预解析一次并缓存(显示器变化时刷新),取景层拿到 ID 后自己从 MediaStream 里抓一帧。这样既绕开了枚举,也省掉了主进程 PNG 编码、几 MB 的 IPC 传图和渲染端解码。
+
+按下快捷键到画面出现约 600ms,改之前是 1900ms。`task check:latency` 可以量,顺带校验抓到的不是黑帧。
+
 **录屏没有原生裁剪**:抓整屏的 MediaStream,把选区那块逐帧画进一张 canvas,再录这张 canvas。鼠标高亮和点击涟漪也画在这一步。
 
 **点击检测没法靠 Electron**:它只给光标位置,不给按键。所以用 koffi 调 `user32!GetAsyncKeyState` 按 60Hz 轮询左键,在主进程做边沿检测后推给录制窗口。FFI 加载失败时会降级成只有高亮、没有点击效果。
@@ -187,6 +191,8 @@ src/
 | `preview-ui.js` | `task preview` | 用合成的假桌面渲染取景层的各个状态,输出 PNG。取景层是全屏置顶的,出了问题挂不上 DevTools,改 UI 后用它自查 |
 | `preview-settings.js` | `task preview` | 渲染设置窗口,含按键录制中和快捷键冲突两种状态 |
 | `check-settings.js` | `task check:settings` | 校验配置读写、保存目录失效时的退回、快捷键冲突时的回滚 |
+| `check-latency.js` | `task check:latency` | 量从快捷键到画面可见的耗时，并确认抓到的帧不是黑的 |
+| `check-capture-speed.js` | `task check:capture-speed` | 拆解 desktopCapturer 慢在哪，和 MediaStream 抓帧对比。截图为什么不走 desktopCapturer 的依据 |
 | `check-capture.js` | `task check:capture` | 报告每块屏幕的尺寸、缩放和实际抓取分辨率 |
 | `check-media.js` | `task check:media` | 探测 MediaRecorder 支持哪些容器/编码、系统声音能不能抓、有几个摄像头麦克风 |
 | `check-record.js` | `task check:record` | 端到端实录几秒,校验 MP4 / GIF 的容器结构和帧数,确认不是黑帧。跑完自动删掉录出来的临时文件 |

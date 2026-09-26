@@ -53,19 +53,23 @@ app.whenReady().then(async () => {
 
   const dataURL = await win.webContents.executeJavaScript(fakeDesktop(W, H));
 
+  // The overlay grabs its own frame from a desktop stream now. With no real
+  // source to hand it, let it fail over to the PNG path and serve the fake
+  // desktop from there.
+  ipcMain.handle('overlay:fallback-shot', () => dataURL);
+
   win.webContents.send('overlay:init', {
     mode: 'capture',
     isPrimary: true,
     cursor: { x: 420, y: 300 },
     shot: {
       displayId: 1,
-      sourceId: 'preview',
+      sourceId: null,
       bounds: { x: 0, y: 0, width: W, height: H },
       // Pretend there is a taskbar, so toolbar clamping gets exercised.
       workArea: { x: 0, y: 0, width: W, height: H - 48 },
       scaleFactor: 1,
       pixelSize: { width: W, height: H },
-      dataURL,
     },
   });
 

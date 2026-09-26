@@ -19,7 +19,8 @@ const {
 
 const { pathToFileURL } = require('url');
 
-const { captureAllDisplays } = require('./capture');
+const { describeDisplays, captureDisplayImage } = require('./capture');
+const screens = require('./screens');
 const cursorTracker = require('./cursor');
 const autoLaunch = require('./autolaunch');
 const settings = require('./settings');
@@ -86,6 +87,9 @@ app.whenReady().then(() => {
   autoLaunch.refresh();
   setupTray();
   applyShortcuts();
+  // Enumerating capture sources takes about a second; get it out of the way
+  // now so the first hotkey press does not have to wait for it.
+  screens.warmUp();
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
@@ -194,7 +198,7 @@ async function openOverlays(mode) {
   capturing = true;
 
   try {
-    const shots = await captureAllDisplays();
+    const shots = await describeDisplays();
     if (!shots.length) throw new Error('没有可捕获的屏幕');
 
     const cursor = screen.getCursorScreenPoint();
@@ -246,6 +250,9 @@ function pointInBounds(p, b) {
 // ---------------------------------------------------------------------------
 // IPC — overlay
 // ---------------------------------------------------------------------------
+
+/** The overlay's own frame grab failed; hand it a PNG instead. */
+ipcMain.handle('overlay:fallback-shot', (event, displayId) => captureDisplayImage(displayId));
 
 /** The renderer has the frozen screenshot on screen — safe to reveal now. */
 ipcMain.on('overlay:ready', (event) => {

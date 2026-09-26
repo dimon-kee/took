@@ -138,9 +138,12 @@
     S.viewW = payload.shot.bounds.width;
     S.viewH = payload.shot.bounds.height;
     S.workArea = payload.shot.workArea || { x: 0, y: 0, width: S.viewW, height: S.viewH };
-    S.ratio = payload.shot.pixelSize.width / S.viewW || payload.shot.scaleFactor || 1;
 
     await loadBase(payload.shot);
+
+    // Derive the ratio from the frame we actually captured — the stream can
+    // hand back a different size than the display reports.
+    S.ratio = els.base.width / S.viewW || payload.shot.scaleFactor || 1;
     sizeCanvases();
 
     magnifier = Mag.create(els.ui);
@@ -196,19 +199,75 @@
     markDirty('mask', 'shapes', 'live');
   });
 
-  function loadBase(shot) {
+  /**
+   * Freeze this display into the base canvas.
+   *
+   * Pulls a single frame out of a desktop MediaStream rather than taking a PNG
+   * from main: no encode, no multi-megabyte IPC payload, no decode. Falls back
+   * to the data-URL path if the stream will not start.
+   */
+  async function loadBase(shot) {
+    try {
+      await grabFromStream(shot);
+    } catch (err) {
+      console.warn('[took] 抓帧失败，退回 PNG 路径:', err.message);
+      const dataURL = await window.took.fallbackShot(shot.displayId);
+      if (!dataURL) throw new Error('没有拿到屏幕图像');
+      await drawDataURL(dataURL);
+    }
+
+    S.baseData = ctx.base.getImageData(0, 0, els.base.width, els.base.height).data;
+  }
+
+  async function grabFromStream(shot) {
+    if (!shot.sourceId) throw new Error('没有屏幕源');
+
+    const { width, height } = shot.pixelSize;
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: shot.sourceId,
+          minWidth: width,
+          maxWidth: width,
+          minHeight: height,
+          maxHeight: height,
+        },
+      },
+    });
+
+    try {
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.muted = true;
+      await video.play();
+      // The first decoded frame, not just "playing" — otherwise we can paint
+      // an empty canvas.
+      await new Promise((resolve) => video.requestVideoFrameCallback(() => resolve()));
+
+      // Trust the frame we actually got over the size we asked for.
+      els.base.width = video.videoWidth || width;
+      els.base.height = video.videoHeight || height;
+      ctx.base.drawImage(video, 0, 0, els.base.width, els.base.height);
+
+      video.srcObject = null;
+    } finally {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+  }
+
+  function drawDataURL(dataURL) {
     return new Promise((resolve, reject) => {
-      if (!shot.dataURL) return reject(new Error('没有拿到屏幕图像'));
       const img = new Image();
       img.onload = () => {
         els.base.width = img.naturalWidth;
         els.base.height = img.naturalHeight;
         ctx.base.drawImage(img, 0, 0);
-        S.baseData = ctx.base.getImageData(0, 0, els.base.width, els.base.height).data;
         resolve();
       };
       img.onerror = () => reject(new Error('屏幕图像解码失败'));
-      img.src = shot.dataURL;
+      img.src = dataURL;
     });
   }
 
