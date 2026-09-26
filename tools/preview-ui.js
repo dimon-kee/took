@@ -75,14 +75,17 @@ app.whenReady().then(async () => {
 
   await wait(700);
 
-  await shoot(win, 'a-idle-magnifier', `
+  // Opens with the whole display already framed, awaiting a click.
+  await shoot(win, 'a-preselect-fullscreen', `
     fire('mousemove', 420, 300);
   `);
 
-  // A bare click selects the whole display — the toolbar has to stay on screen.
-  await shoot(win, 'a2-fullscreen-selection', `
+  // A click with a little jitter must still read as "accept the default", not
+  // collapse the frame to a speck.
+  await shoot(win, 'a2-click-confirms', `
     fire('mousedown', 420, 300);
-    fire('mouseup', 420, 300);
+    fire('mousemove', 421, 301);
+    fire('mouseup', 421, 301);
   `);
 
   await shoot(win, 'a3-back-to-idle', `

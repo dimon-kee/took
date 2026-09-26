@@ -61,6 +61,9 @@
     workArea: null, // display-local; toolbars stay inside it
     phase: 'idle', // idle | ready
     sel: null, // { x, y, w, h } in display-local CSS px
+    // True while `sel` is the whole-screen default rather than something the
+    // user drew. A click accepts it; a drag replaces it.
+    preselect: false,
     shapes: [],
     tool: null,
     color: COLORS[0].value,
@@ -165,6 +168,9 @@
         x: payload.cursor.x - payload.shot.bounds.x,
         y: payload.cursor.y - payload.shot.bounds.y,
       };
+      // Open with the whole display already framed, so a single click is a
+      // full-screen grab. Displays the cursor is not on stay dimmed.
+      preselectFullScreen();
     } else {
       Mag.show(magnifier, false);
     }
@@ -187,6 +193,7 @@
     S.active = false;
     S.phase = 'idle';
     S.sel = null;
+    S.preselect = false;
     S.shapes = [];
     S.tool = null;
     S.drag = null;
@@ -907,6 +914,16 @@
     switch (d.kind) {
       case 'select': {
         if (Math.abs(p.x - d.ox) > CLICK_SLOP || Math.abs(p.y - d.oy) > CLICK_SLOP) d.moved = true;
+
+        // Hold the full-screen default until the pointer really travels —
+        // otherwise a shaky click collapses it to a speck and the screen
+        // flashes dim on the way back.
+        if (!d.moved && S.preselect) {
+          drawMagnifier();
+          break;
+        }
+
+        S.preselect = false;
         S.sel = rectFrom(d.ox, d.oy, p.x, p.y);
         layoutBadge();
         drawMagnifier();
@@ -952,13 +969,16 @@
     S.drag = null;
 
     if (d.kind === 'select') {
-      // A bare click with no drag grabs the whole display.
+      // A bare click accepts the whole-display default that is already framed.
       if (!d.moved) S.sel = { x: 0, y: 0, w: S.viewW, h: S.viewH };
+
+      // A drag too small to be meaningful falls back to that default rather
+      // than leaving nothing selected.
       if (S.sel.w < 2 || S.sel.h < 2) {
-        S.sel = null;
-        markDirty('mask', 'live');
+        preselectFullScreen();
         return;
       }
+
       enterReady();
       return;
     }
@@ -1000,8 +1020,18 @@
     window.took.cancel();
   });
 
+  /** Frame the whole display as the pending default selection. */
+  function preselectFullScreen() {
+    S.phase = 'idle';
+    S.sel = { x: 0, y: 0, w: S.viewW, h: S.viewH };
+    S.preselect = true;
+    layoutBadge();
+    markDirty('mask', 'live');
+  }
+
   function enterReady() {
     S.phase = 'ready';
+    S.preselect = false;
     Mag.show(magnifier, false);
     layoutBadge();
     syncToolbar();
@@ -1012,13 +1042,20 @@
   }
 
   function resetSelection() {
-    S.phase = 'idle';
-    S.sel = null;
     S.shapes = [];
     S.tool = null;
     S.hoverShape = -1;
     S.toolbarPos = null;
     hideChrome();
+
+    // Back to the opening state rather than to nothing selected.
+    if (S.active) preselectFullScreen();
+    else {
+      S.phase = 'idle';
+      S.sel = null;
+      S.preselect = false;
+    }
+
     Mag.show(magnifier, S.active);
     syncModeBar();
     syncWebcam();
