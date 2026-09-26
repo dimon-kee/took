@@ -7,6 +7,7 @@ const T = (key, vars) => window.i18n.t(key, vars);
   const els = {
     saveDir: document.getElementById('save-dir'),
     langRow: document.getElementById('lang-row'),
+    autoLaunch: document.getElementById('auto-launch'),
     error: document.getElementById('error'),
     status: document.getElementById('status'),
   };
@@ -16,6 +17,11 @@ const T = (key, vars) => window.i18n.t(key, vars);
   let current = null; // the settings as loaded / edited
   let defaults = null;
   let listening = null; // which hotkey button is capturing right now
+  // Start-with-Windows lives in the registry, not settings.json, so something
+  // else (`task autostart:on|off`) can flip it while this window is open.
+  // Remember what we loaded so a save only touches it when the user actually
+  // changed it here.
+  let loadedAutoLaunch = false;
 
   init();
 
@@ -23,6 +29,8 @@ const T = (key, vars) => window.i18n.t(key, vars);
     const data = await window.took.load();
     defaults = data.defaults;
     current = data.settings;
+    current.autoLaunch = Boolean(data.autoLaunch);
+    loadedAutoLaunch = current.autoLaunch;
 
     wire();
     // After wire(), not before: the language buttons do not exist until
@@ -41,6 +49,8 @@ const T = (key, vars) => window.i18n.t(key, vars);
     els.langRow.querySelectorAll('.lang').forEach((btn) => {
       btn.classList.toggle('is-on', btn.dataset.lang === current.language);
     });
+
+    els.autoLaunch.checked = current.autoLaunch;
   }
 
   function buildLanguages() {
@@ -68,6 +78,12 @@ const T = (key, vars) => window.i18n.t(key, vars);
 
   function wire() {
     buildLanguages();
+
+    els.autoLaunch.addEventListener('change', () => {
+      current.autoLaunch = els.autoLaunch.checked;
+      clearError();
+    });
+
     document.querySelectorAll('.hotkey').forEach((btn) => {
       btn.addEventListener('click', () => startListening(btn));
     });
@@ -212,7 +228,11 @@ const T = (key, vars) => window.i18n.t(key, vars);
   async function save() {
     clearError();
 
-    const result = await window.took.save(current);
+    const payload = { ...current };
+    delete payload.autoLaunch;
+    if (current.autoLaunch !== loadedAutoLaunch) payload.autoLaunch = current.autoLaunch;
+
+    const result = await window.took.save(payload);
 
     if (result.ok) {
       els.status.textContent = T('settings.saved');

@@ -26,7 +26,7 @@ Without go-task installed, `npm start` / `npm run dev` / `npm run dist` work too
 
 ## Start with Windows
 
-Tick "Start with Windows" in the tray menu, or:
+Tick "Start with Windows" under Settings → General, or:
 
 ```bash
 task autostart:on
@@ -145,11 +145,14 @@ Screenshots are always PNG at **native resolution**. On a 1920×1080 screen at 1
 
 Tray menu → Settings…
 
-**Language** — English (the default) or 简体中文. It covers the tray menu, every window and the file dialogs. Windows already open keep their language until they are next opened; the settings window rebuilds itself straight away so you see the change.
+**General** — language and start-up.
+
+- **Language**: English (the default) or 简体中文. It covers the tray menu, every window and the file dialogs. Windows already open keep their language until they are next opened; the settings window rebuilds itself straight away so you see the change.
+- **Start with Windows**: only written when you actually change it here, so saving other settings never undoes a change made with `task autostart`.
 
 **Hotkeys** — click the field and press the combination you want. At least one modifier is required, otherwise that key would be swallowed system-wide. If a combination is already taken by another program the row turns red and **nothing is saved at all** — you never end up with half your hotkeys broken. Each row has a reset link.
 
-**Save location** — where the save dialogs for screenshots and recordings start, and where the tray's "Open save folder" goes. Defaults to `Pictures/Took/`. A new directory is probe-written before it is accepted, so an unwritable path is rejected on the spot rather than when you try to save a capture.
+**Save location** — where the save dialogs for screenshots and recordings start; the Open button beside it jumps straight there. Defaults to `Pictures/Took/`. A new directory is probe-written before it is accepted, so an unwritable path is rejected on the spot rather than when you try to save a capture.
 
 Settings live in `%APPDATA%\Took\settings.json`. A corrupt or missing file falls back to defaults instead of failing to start. If the directory later disappears — external drive unplugged, folder deleted — captures fall back to `Pictures/Took` rather than being lost.
 

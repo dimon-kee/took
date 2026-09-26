@@ -12,9 +12,21 @@
   <body>
     <main>
       <section>
-        <h2 data-i18n="settings.language"></h2>
-        <p class="hint" data-i18n="settings.languageHint"></p>
-        <div class="row" id="lang-row"></div>
+        <h2 data-i18n="settings.general"></h2>
+
+        <div class="row">
+          <label data-i18n="settings.language"></label>
+          <div class="options" id="lang-row"></div>
+        </div>
+
+        <div class="row">
+          <label for="auto-launch" data-i18n="settings.startup"></label>
+          <label class="check">
+            <input type="checkbox" id="auto-launch" />
+            <i></i>
+            <span data-i18n="settings.autoLaunch"></span>
+          </label>
+        </div>
       </section>
 
       <section>

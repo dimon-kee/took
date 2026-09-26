@@ -124,6 +124,10 @@ function setupTray() {
   tray.on('click', () => startCapture());
 }
 
+/**
+ * Actions only. Anything that is a preference lives in the settings window, so
+ * the tray does not grow a second copy of it to keep in sync.
+ */
 function refreshTrayMenu() {
   if (!tray || tray.isDestroyed()) return;
 
@@ -133,17 +137,6 @@ function refreshTrayMenu() {
       { label: `${t('tray.record')}  ${prettyKey(shortcutFor('record'))}`, click: () => startRecordSelection() },
       { type: 'separator' },
       { label: t('tray.settings'), click: () => openSettings() },
-      { label: t('tray.openFolder'), click: () => shell.openPath(settings.saveDir()) },
-      {
-        label: t('tray.autoLaunch'),
-        type: 'checkbox',
-        checked: autoLaunch.enabled(),
-        click: (item) => {
-          autoLaunch.set(item.checked);
-          refreshTrayMenu();
-        },
-      },
-      { type: 'separator' },
       { label: t('tray.quit'), click: () => app.exit(0) },
     ])
   );
@@ -622,6 +615,8 @@ function openSettings() {
 
 ipcMain.handle('settings:load', () => ({
   settings: settings.get(),
+  // Lives in the registry rather than settings.json, so report it separately.
+  autoLaunch: autoLaunch.enabled(),
   defaults: {
     ...settings.DEFAULTS,
     // What the placeholder path actually resolves to, so the field can show a
@@ -649,6 +644,11 @@ ipcMain.handle('settings:save', (event, next) => {
     refreshTrayMenu();
     return { ok: false, conflicts };
   }
+
+  // Only once everything else has been accepted, so a rejected save never
+  // leaves the start-up entry changed on its own. The renderer sends this
+  // field only when the user touched the checkbox.
+  if (typeof next.autoLaunch === 'boolean') autoLaunch.set(next.autoLaunch);
 
   refreshTrayMenu();
 

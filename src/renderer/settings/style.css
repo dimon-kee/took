@@ -57,12 +57,67 @@ h2 {
   margin-bottom: 10px;
 }
 
-/* Wide enough for "Record screen" on one line — the Chinese labels are much
-   shorter, so sizing for English keeps both from wrapping. */
-.row label {
+/* The row's leading label is a fixed column. Wide enough for "Record screen" on
+   one line — the Chinese labels are much shorter, so sizing for English keeps
+   both from wrapping. Only the first label: a checkbox's own label sits in the
+   row too and must not be stretched to the column width. */
+.row > label:first-child {
   width: 104px;
   flex: none;
   color: rgba(255, 255, 255, 0.72);
+}
+
+.options {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: -10px; /* line the radio dots up with the fields below */
+}
+
+/* --- checkbox ------------------------------------------------------------- */
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+}
+
+.check input {
+  display: none;
+}
+
+.check i {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.6px solid rgba(255, 255, 255, 0.45);
+  flex: none;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+.check:hover i {
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.check input:checked + i {
+  background: #1677ff;
+  border-color: #1677ff;
+}
+
+.check input:checked + i::after {
+  content: '';
+  position: absolute;
+  left: 4.6px;
+  top: 1.4px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 1.8px 1.8px 0;
+  transform: rotate(45deg);
 }
 
 /* --- language picker ----------------------------------------------------- */

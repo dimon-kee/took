@@ -24,6 +24,7 @@ const OUT = process.argv[2] || path.join(app.getPath('temp'), 'took-preview');
 // Stand in for src/main/index.js, which this harness does not load.
 ipcMain.handle('settings:load', () => ({
   settings: settings.get(),
+  autoLaunch: true,
   defaults: {
     ...settings.DEFAULTS,
     saveDirLabel: settings.saveDir(),

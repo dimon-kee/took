@@ -22,8 +22,6 @@ const en = {
   'tray.capture': 'Screenshot',
   'tray.record': 'Record screen',
   'tray.settings': 'Settings…',
-  'tray.openFolder': 'Open save folder',
-  'tray.autoLaunch': 'Start with Windows',
   'tray.quit': 'Quit',
 
   // overlay chrome
@@ -106,8 +104,10 @@ const en = {
   'pin.closeHint': 'Close  Esc / double-click',
 
   // settings window
+  'settings.general': 'General',
   'settings.language': 'Language',
-  'settings.languageHint': 'Applies to the tray menu and every window.',
+  'settings.startup': 'Startup',
+  'settings.autoLaunch': 'Start with Windows',
   'settings.hotkeys': 'Hotkeys',
   'settings.hotkeysHint':
     'Click a field and press the combination you want. At least one modifier is required.',
@@ -115,8 +115,7 @@ const en = {
   'settings.record': 'Record screen',
   'settings.reset': 'Reset',
   'settings.saveLocation': 'Save location',
-  'settings.saveLocationHint':
-    'Where the save dialogs start, and where the tray’s "Open save folder" goes.',
+  'settings.saveLocationHint': 'Where the save dialogs for screenshots and recordings start.',
   'settings.browse': 'Browse…',
   'settings.open': 'Open',
   'settings.resetDir': 'Reset to Pictures / Took',
@@ -168,8 +167,6 @@ const zh = {
   'tray.capture': '截图',
   'tray.record': '录屏',
   'tray.settings': '设置…',
-  'tray.openFolder': '打开保存目录',
-  'tray.autoLaunch': '开机自启',
   'tray.quit': '退出',
 
   'overlay.modeCapture': '截图',
@@ -242,16 +239,17 @@ const zh = {
   'pin.saveHint': '保存  Ctrl+S',
   'pin.closeHint': '关闭  Esc / 双击',
 
+  'settings.general': '通用',
   'settings.language': '语言',
-  'settings.languageHint': '托盘菜单和所有窗口都会跟着切换。',
+  'settings.startup': '启动',
+  'settings.autoLaunch': '开机自启',
   'settings.hotkeys': '快捷键',
   'settings.hotkeysHint': '点一下输入框，直接按下想要的组合。需要至少一个修饰键。',
   'settings.capture': '截图',
   'settings.record': '录屏',
   'settings.reset': '恢复默认',
   'settings.saveLocation': '保存位置',
-  'settings.saveLocationHint':
-    '截图和录屏的「另存为」默认落在这里，托盘的「打开保存目录」也跳这里。',
+  'settings.saveLocationHint': '截图和录屏的「另存为」默认落在这里。',
   'settings.browse': '浏览…',
   'settings.open': '打开',
   'settings.resetDir': '恢复默认（图片 / Took）',
