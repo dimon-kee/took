@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; img-src 'self' data:"
+    />
+    <title>Took — 贴图</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <img id="shot" alt="" draggable="false" />
+    <div id="bar">
+      <button class="act" id="act-copy" title="复制  Ctrl+C">复制</button>
+      <button class="act" id="act-save" title="保存  Ctrl+S">保存</button>
+      <button class="act danger" id="act-close" title="关闭  Esc / 双击">✕</button>
+    </div>
+    <script src="pin.js"></script>
+  </body>
+</html>

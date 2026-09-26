@@ -1,0 +1,627 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  cursor: crosshair;
+  user-select: none;
+  font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+}
+
+/* Only the four stacked layers are absolute — the magnifier's canvas must stay
+   in flow so the readout below it keeps its height. */
+#base,
+#mask,
+#shapes,
+#live {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+
+#ui {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   magnifier
+   -------------------------------------------------------------------------- */
+
+.magnifier {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 128px;
+  background: #0f0f10;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  will-change: transform;
+}
+
+.mag-canvas {
+  display: block;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.mag-info {
+  padding: 5px 4px 6px;
+  text-align: center;
+}
+
+.mag-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mag-swatch {
+  width: 8px;
+  height: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  flex: none;
+}
+
+.mag-hint {
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* --------------------------------------------------------------------------
+   mode bar: 截图 / 录屏
+   -------------------------------------------------------------------------- */
+
+#modebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 8px 0 2px;
+  border-radius: 10px;
+  background: rgba(38, 38, 40, 0.94);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+  cursor: default;
+  will-change: transform;
+}
+
+#modebar .grip {
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  grid-template-rows: repeat(3, 3px);
+  gap: 3px;
+  padding: 0 7px;
+  cursor: move;
+}
+
+#modebar .grip i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.mode {
+  appearance: none;
+  border: 0;
+  height: 28px;
+  min-width: 56px;
+  padding: 0 14px;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 14px;
+  font-family: inherit;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.mode:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.mode.active {
+  background: #ffffff;
+  color: #1c1c1e;
+}
+
+/* --------------------------------------------------------------------------
+   size badge
+   -------------------------------------------------------------------------- */
+
+#size-badge {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 4px 9px;
+  border-radius: 4px;
+  background: rgba(20, 20, 22, 0.9);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  will-change: transform;
+}
+
+/* --------------------------------------------------------------------------
+   toolbars
+   -------------------------------------------------------------------------- */
+
+.toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding: 0 8px 0 4px;
+  border-radius: 8px;
+  background: rgba(38, 38, 40, 0.97);
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  cursor: default;
+  will-change: transform;
+}
+
+.toolbar .grip {
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  grid-template-rows: repeat(3, 3px);
+  gap: 3px;
+  padding: 0 7px;
+}
+
+.toolbar .grip i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.tool {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.93);
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+
+.tool:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.tool.active {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.tool.danger {
+  color: #ff4d4f;
+}
+
+.tool.danger:hover {
+  background: rgba(255, 77, 79, 0.9);
+  color: #fff;
+}
+
+.tool.ok {
+  color: #52c41a;
+}
+
+.tool.ok:hover {
+  background: rgba(82, 196, 26, 0.92);
+  color: #fff;
+}
+
+.tool.disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.tool-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 5px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* --------------------------------------------------------------------------
+   sub toolbar: stroke width + palette
+   -------------------------------------------------------------------------- */
+
+.subbar {
+  gap: 0;
+  padding: 0 10px;
+  height: 34px;
+}
+
+.width-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.width-dot i {
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  transition: background 0.1s ease;
+}
+
+.width-dot:hover i,
+.width-dot.active i {
+  background: #fff;
+}
+
+.swatch {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  margin: 0 3px;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.swatch:hover {
+  transform: scale(1.12);
+}
+
+.swatch.active::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 3px;
+  width: 6px;
+  height: 11px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+}
+
+.swatch[data-light='1'].active::after {
+  border-color: #1a1a1a;
+  filter: none;
+}
+
+/* --------------------------------------------------------------------------
+   recording setup card
+   -------------------------------------------------------------------------- */
+
+.recpanel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 346px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(30, 30, 32, 0.97);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  cursor: default;
+  will-change: transform;
+}
+
+.rec-start {
+  display: block;
+  width: 100%;
+  height: 38px;
+  border: 0;
+  border-radius: 7px;
+  background: #1677ff;
+  color: #fff;
+  font-size: 15px;
+  font-family: inherit;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.rec-start:hover {
+  background: #4096ff;
+}
+
+.rec-body {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 0 4px;
+}
+
+.rec-label {
+  margin-right: 6px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+}
+
+.rec-radio {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.rec-radio:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.rec-radio .dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.6px solid rgba(255, 255, 255, 0.45);
+  flex: none;
+  position: relative;
+}
+
+.rec-radio.is-on .dot {
+  border-color: #1677ff;
+  background: #1677ff;
+}
+
+.rec-radio.is-on .dot::after {
+  content: '';
+  position: absolute;
+  inset: 3.4px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.rec-devices {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  margin-top: 10px;
+}
+
+.dev {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 62px;
+}
+
+.dev-hit {
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  transition: background 0.1s ease;
+}
+
+.dev-hit:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dev-icon,
+.dev-caret {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dev-icon {
+  position: relative;
+  width: 34px;
+  height: 32px;
+}
+
+/* Bigger than the annotation toolbar's glyphs — these carry a slash overlay. */
+.dev-icon svg {
+  width: 23px;
+  height: 23px;
+}
+
+.dev-caret {
+  width: 16px;
+  height: 32px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.dev-caret svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Struck-through icon marks a disabled source. The thin dark shadow above the
+   bar keeps it from merging into the glyph's own strokes. */
+.dev-icon .slash {
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  width: 22px;
+  height: 1.7px;
+  border-radius: 1px;
+  background: currentColor;
+  transform: rotate(-42deg);
+  transform-origin: center;
+  box-shadow: 0 -1.6px 0 0 rgba(30, 30, 32, 0.97);
+  opacity: 0;
+}
+
+.dev.off .dev-icon,
+.dev.off .dev-name {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.dev.off .dev-icon .slash {
+  opacity: 1;
+}
+
+.dev-name {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+/* --- dropdowns ----------------------------------------------------------- */
+
+.rec-menu {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 160px;
+  max-width: 340px;
+  padding: 5px;
+  border-radius: 9px;
+  background: rgba(28, 28, 30, 0.98);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55);
+  pointer-events: auto;
+  z-index: 5;
+}
+
+.menu-head,
+.menu-empty {
+  padding: 6px 10px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12.5px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.menu-item .tick {
+  margin-left: auto;
+  width: 5px;
+  height: 10px;
+  border: solid rgba(255, 255, 255, 0.85);
+  border-width: 0 1.8px 1.8px 0;
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.menu-item .box {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.6px solid rgba(255, 255, 255, 0.45);
+  flex: none;
+}
+
+.menu-item .box.on {
+  background: #1677ff;
+  border-color: #1677ff;
+}
+
+.menu-item .box.on::after {
+  content: '';
+  position: absolute;
+  left: 4.6px;
+  top: 1.4px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 1.8px 1.8px 0;
+  transform: rotate(45deg);
+}
+
+/* --------------------------------------------------------------------------
+   text input
+   -------------------------------------------------------------------------- */
+
+#text-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  min-width: 24px;
+  min-height: 1em;
+  padding: 0;
+  border: 1px dashed rgba(255, 255, 255, 0.75);
+  outline: none;
+  background: rgba(0, 0, 0, 0.12);
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+  pointer-events: auto;
+  cursor: text;
+  line-height: 1.32;
+}
+
+/* --------------------------------------------------------------------------
+   toast
+   -------------------------------------------------------------------------- */
+
+#toast {
+  position: absolute;
+  left: 50%;
+  bottom: 84px;
+  transform: translateX(-50%);
+  max-width: 70vw;
+  padding: 9px 18px;
+  border-radius: 8px;
+  background: rgba(20, 20, 22, 0.94);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  word-break: break-all;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.45);
+}
+

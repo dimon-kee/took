@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:"
+    />
+    <title>Took — 截图</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <canvas id="base"></canvas>
+    <canvas id="mask"></canvas>
+    <canvas id="shapes"></canvas>
+    <canvas id="live"></canvas>
+
+    <div id="ui">
+      <div id="modebar" class="hidden">
+        <div class="grip" id="mode-grip" title="拖动">
+          <i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <button class="mode" data-mode="capture">截图</button>
+        <button class="mode" data-mode="record">录屏</button>
+      </div>
+      <div id="size-badge" class="hidden"></div>
+      <div id="toolbar" class="toolbar hidden"></div>
+      <div id="subbar" class="toolbar subbar hidden"></div>
+      <textarea id="text-input" class="hidden" spellcheck="false"></textarea>
+      <div id="toast" class="hidden"></div>
+    </div>
+
+    <script src="icons.js"></script>
+    <script src="shapes.js"></script>
+    <script src="magnifier.js"></script>
+    <script src="recordpanel.js"></script>
+    <script src="overlay.js"></script>
+  </body>
+</html>

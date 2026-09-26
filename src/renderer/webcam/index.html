@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'self'; script-src 'self'; media-src 'self' blob:"
+    />
+    <title>Took — 摄像头</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+
+    <div class="tools" id="tools">
+      <button class="shape" data-shape="rect" title="圆角矩形"><i class="s-rect"></i></button>
+      <button class="shape" data-shape="circle" title="圆形"><i class="s-circle"></i></button>
+      <button class="gear" id="btn-gear" title="设置">
+        <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor"
+             stroke-width="1.6">
+          <circle cx="10" cy="10" r="2.8" />
+          <path d="M10 2.6 v1.9 M10 15.5 v1.9 M2.6 10 h1.9 M15.5 10 h1.9
+                   M4.8 4.8 l1.35 1.35 M13.85 13.85 l1.35 1.35
+                   M15.2 4.8 l-1.35 1.35 M6.15 13.85 l-1.35 1.35" />
+        </svg>
+      </button>
+    </div>
+
+    <div class="menu hidden" id="menu">
+      <label class="row"><input type="checkbox" id="opt-mirror" /><i></i><span>镜像</span></label>
+      <label class="row"><input type="checkbox" id="opt-beauty" /><i></i><span>美颜</span></label>
+      <label class="row" id="row-blur">
+        <input type="checkbox" id="opt-blur" /><i></i><span>背景虚化</span>
+      </label>
+    </div>
+
+    <script src="webcam.js"></script>
+  </body>
+</html>

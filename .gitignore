@@ -1,0 +1,8 @@
+node_modules/
+dist/
+out/
+*.log
+.preview/
+
+# 图标由 tools/make-icons.js 生成（postinstall 会跑），仓库不存二进制素材
+assets/

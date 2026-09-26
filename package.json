@@ -1,0 +1,48 @@
+{
+  "name": "took",
+  "version": "0.1.0",
+  "description": "截图 / 录屏工具",
+  "main": "src/main/index.js",
+  "author": "keeyo",
+  "license": "MIT",
+  "scripts": {
+    "postinstall": "node tools/make-icons.js",
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "gifenc": "^1.0.3",
+    "jsqr": "^1.4.0",
+    "koffi": "^3.3.1"
+  },
+  "build": {
+    "appId": "ai.xtractify.took",
+    "productName": "Took",
+    "publish": null,
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/jsqr/**/*",
+      "node_modules/gifenc/**/*",
+      "node_modules/koffi/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/**/*"
+    ],
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

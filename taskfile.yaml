@@ -1,0 +1,126 @@
+# https://taskfile.dev
+
+version: "3"
+
+output: prefixed
+
+vars:
+  PREVIEW_DIR: .preview
+
+tasks:
+  default:
+    desc: List available commands
+    cmds:
+      - cmd: task --list
+    silent: true
+
+  # ── 跑起来 ──────────────────────────────────────────────
+  dev:
+    desc: Start the app — it lives in the tray, press Ctrl+Shift+S to capture
+    cmds:
+      - cmd: npm run dev -- {{.CLI_ARGS}}
+    aliases: [d]
+
+  stop:
+    desc: Kill Took — both a dev run and an installed build
+    cmds:
+      # 应用常驻托盘、平时没有窗口，关窗口是关不掉的；改完代码要生效
+      # 只能真的把进程杀了重起。一次会连带 GPU / utility 子进程。
+      # 开发时进程名是 electron.exe，装了打包版之后是 Took.exe —— 两个都要管。
+      - cmd: |
+          stopped=""
+          for image in electron.exe Took.exe; do
+            if taskkill /F /IM "$image" >/dev/null 2>&1; then
+              stopped="$stopped $image"
+            fi
+          done
+          if [ -n "$stopped" ]; then
+            echo "已停止:$stopped"
+          else
+            echo "没有在跑的 Took 进程"
+          fi
+    aliases: [s]
+
+  restart:
+    desc: Stop the running instance, then start a fresh one
+    cmds:
+      - task: stop
+      - task: dev
+    aliases: [r]
+
+  install:
+    desc: Install dependencies
+    cmds:
+      - cmd: npm install
+    aliases: [i]
+
+  # ── 开机自启 ────────────────────────────────────────────
+  # 托盘菜单里也有同一个开关。写的是 HKCU 下的 Run 项，只影响当前用户，
+  # 不需要管理员权限。打包版和 task dev 共用同一个注册表值，互相覆盖。
+  autostart:
+    desc: Show whether Took starts with Windows, and what it would launch
+    cmds:
+      - cmd: npx electron tools/autostart.js status
+    aliases: [as]
+
+  autostart:on:
+    desc: Start Took with Windows (tray only, no window)
+    cmds:
+      - cmd: npx electron tools/autostart.js on
+
+  autostart:off:
+    desc: Stop starting Took with Windows
+    cmds:
+      - cmd: npx electron tools/autostart.js off
+
+  # ── 自检 ────────────────────────────────────────────────
+  # 取景层是全屏置顶的，出了问题没法挂 DevTools 去看。所以 UI 改动一律先跑
+  # preview：它用一张合成的假桌面把每个状态渲染成 PNG，不用真的去截屏。
+  preview:
+    desc: Render every overlay state against a synthetic desktop into .preview/
+    cmds:
+      - cmd: npx electron tools/preview-ui.js {{.PREVIEW_DIR}}
+    aliases: [p]
+
+  check:capture:
+    desc: Report each display's bounds, scale factor and the resolution actually captured
+    cmds:
+      - cmd: npx electron tools/check-capture.js
+
+  check:media:
+    desc: Probe MediaRecorder codecs, desktop loopback audio and available devices
+    cmds:
+      - cmd: npx electron tools/check-media.js
+
+  check:record:
+    desc: Record a few seconds as MP4 and GIF, then verify container structure and frame count
+    cmds:
+      # 录出来的片子是你真实屏幕的内容，验完顺手删掉。
+      - cmd: npx electron tools/check-record.js {{.CLI_ARGS | default 4}}
+      - cmd: rm -rf "${TEMP:-/tmp}/took-record-check"
+
+  check:
+    desc: Run every diagnostic
+    cmds:
+      - task: check:capture
+      - task: check:media
+      - task: check:record
+    aliases: [c]
+
+  # ── 打包 ────────────────────────────────────────────────
+  icons:
+    desc: Regenerate assets/*.png from code (the repo keeps no binary art)
+    cmds:
+      - cmd: node tools/make-icons.js
+
+  dist:
+    desc: Build the Windows installer into dist/
+    cmds:
+      - task: icons
+      - cmd: npm run dist
+
+  clean:
+    desc: Remove build output and preview renders
+    cmds:
+      - cmd: rm -rf dist
+      - cmd: rm -rf {{.PREVIEW_DIR}}

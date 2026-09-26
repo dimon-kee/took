@@ -1,0 +1,62 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # the release step needs to upload assets
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # electron-builder downloads a ~120 MB Electron zip plus the winCodeSign
+      # helpers on a cold run. Caching them is the difference between a
+      # four-minute build and well under one.
+      - name: Cache Electron downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-${{ runner.os }}-
+
+      - run: npm ci
+
+      # Renderer code is plain script tags with no build step, so nothing else
+      # would catch a syntax error before it ships.
+      - name: Syntax check
+        shell: bash
+        run: |
+          for file in $(find src tools -name "*.js"); do
+            node --check "$file" || exit 1
+          done
+
+      - run: npm run dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Took-windows-installer
+          path: dist/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+          generate_release_notes: true

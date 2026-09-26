@@ -1,0 +1,69 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+}
+
+/* The whole image is the drag handle; the hover bar opts out below. */
+#shot {
+  -webkit-app-region: drag;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  outline: 1px solid rgba(108, 140, 255, 0.9);
+  outline-offset: -1px;
+  cursor: move;
+}
+
+#bar {
+  -webkit-app-region: no-drag;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 7px;
+  background: rgba(30, 30, 32, 0.92);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 0.14s ease;
+  pointer-events: none;
+}
+
+body:hover #bar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.act {
+  appearance: none;
+  border: 0;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.act:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.act.danger:hover {
+  background: #ff4d4f;
+}

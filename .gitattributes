@@ -1,0 +1,6 @@
+# 仓库里统一存 LF，检出时按平台还原。少了这行 Windows 上每次 add 都刷一屏
+# "LF will be replaced by CRLF" 警告。
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
