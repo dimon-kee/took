@@ -52,6 +52,12 @@ const {
 // one registry entry instead of leaving two start-up items behind.
 app.setName('Took');
 
+// Windows heads the tray's notices with the name of the Start menu shortcut
+// carrying this ID. The installer gives its shortcut build.appId from
+// package.json; left at Electron's default, the heading reads
+// "electron.app.Took".
+if (process.platform === 'win32') app.setAppUserModelId('ai.xtractify.took');
+
 const SHORTCUT_ACTIONS = {
   capture: () => startCapture(),
   record: () => startRecordSelection(),
