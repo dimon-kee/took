@@ -121,6 +121,13 @@ tasks:
     cmds:
       - cmd: npx electron tools/check-update.js {{.CLI_ARGS}}
 
+  check:install:
+    desc: Install, update and uninstall the built installer for real, and check nothing is left
+    cmds:
+      # 真的装、更新、卸载一遍。先 task dist，再关掉开发版（task stop）。
+      # 从旧版本更新上来：task check:install -- --from <旧安装包>
+      - cmd: node tools/check-install.js {{.CLI_ARGS}}
+
   check:clipboard:
     desc: Copy an image, a file and text for real, and read them back from another process
     cmds:

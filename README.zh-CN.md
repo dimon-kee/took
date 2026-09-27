@@ -147,7 +147,7 @@ task autostart:on
 
 ### 编辑录屏
 
-录完弹出 `编辑录屏` 窗口:播放器 + 进度条 + `下载` + `复制到剪贴板`。文件先落在临时目录,你决定了再存。
+录完弹出 `编辑录屏` 窗口:播放器 + 进度条 + `下载` + `复制到剪贴板`。文件先落在临时目录,你决定了再存;下一段录完或者退出 Took 时就删掉。
 
 复制到剪贴板放的是文件引用,MP4 和 GIF 都一样,粘到资源管理器、聊天软件里就是这个文件本身。
 
@@ -179,6 +179,12 @@ task autostart:on
 
 **更新** —— 当前版本号和「检查更新」按钮。「自动下载并安装更新」开着时(默认),Took 启动后不久和之后每六小时检查一次,在后台下载,下好了在托盘提示重启安装;不理它的话,下次退出 Took 时自动装上。关掉之后它自己不会联网:按「检查更新」才去查,有新版也要你按「下载并安装」才会下载。开发版(`task dev`)不能自己更新,会直接说明。
 
+## 卸载
+
+照常在 Windows 设置 → 应用 里卸载。Took 在这台机器上留的东西都会删掉:程序和快捷方式、`%APPDATA%Took`(设置和缓存)、`%LOCALAPPDATA%	ook-updater` 里的更新缓存、开机自启、还在临时目录里等着的录屏。`图片Took` 只在它是空的时候才删 —— 你的截图不会动。
+
+更新不是卸载:它只换掉程序本身,设置和开机自启都保留。
+
 ## 代码结构
 
 ```
@@ -191,6 +197,7 @@ src/
 │   ├── cursor.js          全局鼠标位置 + 点击边沿(koffi → user32)
 │   ├── longcapture.js     长截图:不进截屏画面、放滚轮过去
 │   ├── updater.js         检查、下载、安装更新
+│   ├── clips.js           录屏暂存的临时目录
 │   ├── clipboard.js       剪贴板写入(Electron 44 的异步接口)
 │   ├── autolaunch.js      开机自启的注册
 │   ├── win32.js           Electron 没暴露的那几个 Win32 能力
@@ -233,6 +240,8 @@ src/
 
 **更新来自 GitHub Releases**,用 electron-updater。electron-builder 根据 `package.json` 里的 `publish` 往安装版里写 `resources/app-update.yml`,CI 在每次发布时附上 `latest.yml`(版本、文件名、SHA-512)和安装包的 blockmap —— 所以下载下来会先校验才运行,之后的更新也只下载变了的块。`task check:update` 用一个本地的假 GitHub 把更新流程跑一遍;发布之后,`task check:update -- --live` 会下载真正的最新发布,拿它的 `latest.yml` 核对。
 
+**卸载不留东西**。electron-builder 自带的卸载程序会删程序本身,开了 `deleteAppDataOnUninstall` 还会删 `%APPDATA%Took` —— 但应用放在别处的东西它不管。`build/installer.nsh` 补上剩下的:更新缓存、开机自启、暂存的录屏、空的保存目录,更新时这些一概不动。`task check:install` 会真的安装、从旧版本更新、再卸载,然后确认什么都没留下;中间要动到你的东西都会先备份、再放回去。
+
 **覆盖层是工具窗口,长截图时还会退出截屏画面**。Chromium(所有浏览器、所有 Electron 应用)会在它认为窗口被完全挡住时停止绘制,而一个置顶的全屏窗口就算"挡住" —— 除非它是工具窗口;不然正在滚的那个网页会直接冻住。长截图期间覆盖层还会被排除在屏幕捕获之外(`setContentProtection`),所以变暗层和面板永远不会进到画面里;并且只在选区里放鼠标穿过去。
 
 ## 开发工具
@@ -249,7 +258,8 @@ src/
 | `check-clicks.js` | `task check:clicks` | 用真实的鼠标事件点截图工具栏的 ✓、录屏卡片的下拉菜单和设置里的勾选框。预览脚本用的 `element.click()` 前面没有按下这一步,按下时就触发的逻辑在那里测不到 |
 | `check-stitch.js` | `task check:stitch` | 用答案已知的合成页面、不均匀地滚,去喂长截图的拼接逻辑,每一步的位移和最后的图都逐像素核对。纯 Node,CI 里也跑 |
 | `check-longshot.js` | `task check:longshot` | 用真的覆盖层和实时画面把长截图端到端跑一遍:一个每行像素都写着自己行号的页面在选区下滚动,拼出来的图读回来行号必须一行不断。会在屏幕上盖几秒覆盖层 |
-| `check-update.js` | `task check:update` | 用本地的假 GitHub 测更新:已是最新、发现更新、下载并校验、下载被篡改、服务器出错、自动模式。`-- --live` 改为下载真正的最新发布来核对 |
+| `check-update.js` | `task check:update` | 用本地的假 GitHub 测更新:已是最新、发现更新、下载并校验、下载被篡改、服务器出错、自动模式、更新装好后清缓存。`-- --live` 改为下载真正的最新发布来核对 |
+| `check-install.js` | `task check:install` | 真的安装、更新(`-- --from <旧安装包>`)、卸载一遍,然后确认哪里都没留下东西。要先 `task dist` 并关掉开发版;动到你的东西都会备份并放回 |
 | `check-clipboard.js` | `task check:clipboard` | 真的往剪贴板写图片、文件和文字,再从另一个进程读回来,看到的就是别的程序粘贴时拿到的东西;代码里只要还调用 Electron 44 删掉的同步剪贴板接口就报错。跑完把剪贴板原来的内容放回去 |
 | `check-latency.js` | `task check:latency` | 量从快捷键到画面可见的耗时,并确认抓到的帧不是黑的 |
 | `check-capture-speed.js` | `task check:capture-speed` | 拆解 desktopCapturer 慢在哪,和 MediaStream 抓帧对比。截图为什么不走 desktopCapturer 的依据 |

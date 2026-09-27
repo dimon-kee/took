@@ -1,5 +1,9 @@
 'use strict';
 
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { app } = require('electron');
 const { autoUpdater } = require('electron-updater');
 
 /**
@@ -20,6 +24,10 @@ const { autoUpdater } = require('electron-updater');
 
 const RECHECK = 6 * 60 * 60 * 1000;
 
+// electron-updater's cache, named by electron-builder after the package:
+// "<name>-updater". The uninstaller removes it too (build/installer.nsh).
+const CACHE = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'took-updater');
+
 // idle | checking | latest | available | downloading | ready | error | unsupported
 let state = { status: 'idle' };
 let hooks = { onChange() {}, onReady() {} };
@@ -34,6 +42,7 @@ let timer = null;
  */
 function init({ autoUpdate, onChange, onReady, firstCheck = 15000 }) {
   hooks = { onChange, onReady };
+  if (app.isPackaged) sweepInstalled();
 
   // electron-updater narrates every step to the console; only trouble is
   // worth a line in ours.
@@ -118,6 +127,36 @@ function get() {
   return { ...state };
 }
 
+/**
+ * Once an update has installed, the installer it ran stays in the cache until
+ * a later update replaces it — a hundred-odd megabytes doing nothing. Clear it
+ * unless it holds something newer than what is running. (installer.exe beside
+ * it is this version's own, kept on purpose: the next update diffs against it
+ * and downloads only the blocks that changed.)
+ * @returns whether the pending folder was cleared
+ */
+function sweepInstalled(cache = CACHE, current = app.getVersion()) {
+  const pending = path.join(cache, 'pending');
+  try {
+    const { fileName } = JSON.parse(fs.readFileSync(path.join(pending, 'update-info.json'), 'utf8'));
+    const version = /(\d+)\.(\d+)\.(\d+)/.exec(fileName || '');
+    if (version && newer(version.slice(1, 4).map(Number), current.split('.').map(Number))) return false;
+  } catch {
+    // Nothing pending, or a half-finished download: nothing worth keeping.
+  }
+  try {
+    fs.rmSync(pending, { recursive: true, force: true });
+  } catch {}
+  return true;
+}
+
+function newer(a, b) {
+  for (let i = 0; i < 3; i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+  }
+  return false;
+}
+
 function update(next) {
   state = next;
   hooks.onChange(get());
@@ -130,4 +169,4 @@ function brief(err) {
   return text.length > 160 ? `${text.slice(0, 157)}…` : text;
 }
 
-module.exports = { init, setAuto, check, download, install, get, supported };
+module.exports = { init, setAuto, check, download, install, get, supported, sweepInstalled };

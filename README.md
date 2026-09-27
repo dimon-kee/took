@@ -147,7 +147,7 @@ Space pauses and resumes, `Enter` finishes, `Esc` discards. One hour is the cap,
 
 ### The editor window
 
-When you stop, an *Edit recording* window opens: player, scrubber, *Save* and *Copy to clipboard*. The file sits in a temp directory until you decide where it goes.
+When you stop, an *Edit recording* window opens: player, scrubber, *Save* and *Copy to clipboard*. The file waits in a temp folder until you decide where it goes, and is deleted once the next recording finishes or Took quits.
 
 Copying puts the clip on the clipboard as a file reference, MP4 and GIF alike, so it pastes as the file itself into Explorer and chat apps.
 
@@ -179,6 +179,12 @@ Settings live in `%APPDATA%\Took\settings.json`. A corrupt or missing file falls
 
 **Updates** — the version you are running, and *Check for updates*. With *Download and install updates automatically* on (the default), Took checks shortly after it starts and every six hours, downloads in the background and offers a restart from the tray; ignore the offer and the update installs the next time Took quits. Turned off, it never goes online by itself: *Check for updates* asks, and a new version downloads only when you press *Download and install*. The dev build (`task dev`) cannot update itself and says so.
 
+## Uninstalling
+
+Uninstall from Windows Settings → Apps as usual. It removes everything Took keeps on the machine: the program and its shortcuts, `%APPDATA%Took` (settings and caches), the updater's cache in `%LOCALAPPDATA%	ook-updater`, the Start with Windows entry, and any recording still waiting in the temp folder. `PicturesTook` goes only if it is empty — your captures are never touched.
+
+An update is not an uninstall: it replaces the program and keeps your settings and start-up choice.
+
 ## Layout
 
 ```
@@ -191,6 +197,7 @@ src/
 │   ├── cursor.js          global pointer position + click edges (koffi → user32)
 │   ├── longcapture.js     scrolling screenshot: hide from capture, let the wheel through
 │   ├── updater.js         checking for, downloading and installing updates
+│   ├── clips.js           the temp folder recordings wait in
 │   ├── clipboard.js       clipboard writes on Electron 44's async API
 │   ├── autolaunch.js      start-with-Windows registration
 │   ├── win32.js           Win32 bits Electron does not expose
@@ -233,6 +240,8 @@ Hotkey to visible is about 600ms, down from 1900ms. `task check:latency` measure
 
 **Updates come from GitHub Releases** through electron-updater. electron-builder writes `resources/app-update.yml` into the installed app from the `publish` block in `package.json`, and CI attaches `latest.yml` (version, file name, SHA-512) and the installer's blockmap to every release — so a download is verified before it runs, and later updates fetch only the blocks that changed. `task check:update` runs the updater against a local stand-in for GitHub; after publishing, `task check:update -- --live` downloads the newest real release and checks it against its `latest.yml`.
 
+**Uninstalling leaves nothing behind.** electron-builder's uninstaller removes the program and, with `deleteAppDataOnUninstall`, `%APPDATA%Took` — but not what an app keeps anywhere else. `build/installer.nsh` adds the rest: the updater's cache, the Run entry, parked recordings, an empty save folder. None of it runs during an update. `task check:install` installs, updates from an older release and uninstalls for real, then checks nothing is left; anything of yours it has to disturb is backed up and put back.
+
 **The overlay is a tool window, and leaves the capture while it scrolls.** Chromium — every browser, every Electron app — stops painting a window it believes is fully covered, and a topmost screen-sized window counts unless it is a tool window; without that, the page being scrolled freezes. During a scrolling screenshot the overlay is also excluded from screen capture (`setContentProtection`), so its dimming and panel never reach the frames, and it lets the mouse through only inside the region.
 
 ## Development tools
@@ -249,7 +258,8 @@ Everything under `tools/` has a matching task:
 | `check-clicks.js` | `task check:clicks` | Clicks the screenshot ✓, the recording card's dropdowns and the settings checkbox with real mouse input. The previews use `element.click()`, which has no press before it, so anything that reacts to mousedown goes untested there |
 | `check-stitch.js` | `task check:stitch` | Feeds the scrolling-screenshot stitcher synthetic pages with known answers, scrolled unevenly, and checks every offset and the result pixel for pixel. Plain Node, so CI runs it too |
 | `check-longshot.js` | `task check:longshot` | A scrolling screenshot end to end through the real overlay and a live stream: a page numbering its own pixel rows is scrolled under the selection, and the result must read those numbers back unbroken. Puts an overlay on screen for a few seconds |
-| `check-update.js` | `task check:update` | The updater against a local stand-in for GitHub: up to date, update found, verified download, tampered download, server down, automatic mode. `-- --live` downloads the newest real release instead |
+| `check-update.js` | `task check:update` | The updater against a local stand-in for GitHub: up to date, update found, verified download, tampered download, server down, automatic mode, clearing the cache after an update. `-- --live` downloads the newest real release instead |
+| `check-install.js` | `task check:install` | Installs, updates (`-- --from <older installer>`) and uninstalls for real, then checks nothing is left anywhere. Needs `task dist` first and the dev app closed; backs up and restores anything of yours it touches |
 | `check-clipboard.js` | `task check:clipboard` | Copies an image, a file and text for real and reads them back from a separate process, the way a pasting app sees them; also fails on any call to the synchronous clipboard helpers Electron 44 removed. Puts your clipboard back afterwards |
 | `check-latency.js` | `task check:latency` | Times the hotkey-to-overlay path and confirms the grabbed frame is not blank |
 | `check-capture-speed.js` | `task check:capture-speed` | Breaks down where desktopCapturer spends its time versus a MediaStream frame grab — the evidence for not using it on the hot path |

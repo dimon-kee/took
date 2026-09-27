@@ -24,6 +24,7 @@ const cursorTracker = require('./cursor');
 const longCapture = require('./longcapture');
 const autoLaunch = require('./autolaunch');
 const updater = require('./updater');
+const clips = require('./clips');
 const settings = require('./settings');
 const { pngFromDataURL, copyImage, copyFile, copyText } = require('./clipboard');
 const { createTranslator, LANGUAGES } = require('../shared/i18n');
@@ -96,6 +97,7 @@ app.on('window-all-closed', () => {});
 
 // Nothing is shown at startup: the app lives in the tray until a hotkey fires.
 app.whenReady().then(() => {
+  clips.sweep();
   autoLaunch.refresh();
   setupTray();
   applyShortcuts();
@@ -109,7 +111,10 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  clips.clear();
+});
 
 // ---------------------------------------------------------------------------
 // tray + shortcuts
@@ -146,6 +151,8 @@ function offerRestart(version) {
 
 /** Quit — running a downloaded update on the way out, if one is waiting. */
 function quit() {
+  // app.exit skips will-quit, so the parked recording is cleared here.
+  clips.clear();
   if (!updater.install(false)) app.exit(0);
 }
 
@@ -533,8 +540,9 @@ ipcMain.handle('recorder:done', async (event, { buffer, mime, meta }) => {
 
   // Park it in temp so the preview window can play it back before the user
   // decides where — if anywhere — it should live.
-  const file = path.join(app.getPath('temp'), `took_${stamp()}.${ext}`);
+  let file;
   try {
+    file = clips.next(`took_${stamp()}.${ext}`);
     fs.writeFileSync(file, Buffer.from(buffer));
   } catch (err) {
     dialog.showErrorBox(t('err.saveRecordingTitle'), String(err.message || err));

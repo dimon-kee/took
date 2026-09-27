@@ -5,7 +5,8 @@
  * with a latest.yml and an "installer". Every path goes through the real
  * module — the dev build that cannot update, already up to date, the server
  * failing, a download that does not match its checksum, an update found then
- * downloaded and verified, and automatic mode — without touching the real releases or installing
+ * downloaded and verified, automatic mode, and clearing the cache once an
+ * update has installed — without touching the real releases or installing
  * anything.
  *
  *   npx electron tools/check-update.js
@@ -105,6 +106,13 @@ async function local() {
     const auto = await u.until('ready', 'error');
     check('自动更新开着：自己检查、自己下载', auto.status === 'ready' && auto.version === '999.0.2', auto.message || auto.version);
     check('没有可装的更新时，不会去装', fresh().updater.install() === false);
+
+    console.log('\n更新装好之后');
+    const pending = path.join(CACHE, 'pending');
+    check('装好的这一版，安装包从缓存里清掉', u.updater.sweepInstalled(CACHE, '999.0.2') && !fs.existsSync(pending));
+    fs.mkdirSync(pending, { recursive: true });
+    fs.writeFileSync(path.join(pending, 'update-info.json'), JSON.stringify({ fileName: 'Took-Setup-999.1.0.exe' }));
+    check('还没装的更新留着', u.updater.sweepInstalled(CACHE, '999.0.2') === false && fs.existsSync(pending));
   } finally {
     server.close();
   }

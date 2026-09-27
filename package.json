@@ -50,6 +50,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true,
       "artifactName": "${productName}-Setup-${version}.${ext}"
     }
   }
