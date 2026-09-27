@@ -262,7 +262,7 @@ function createWebcamWindow({ deviceId, bounds }) {
 function createSettingsWindow() {
   const win = new BrowserWindow({
     width: 580,
-    height: 580,
+    height: 680,
     resizable: false,
     minimizable: false,
     maximizable: false,

@@ -16,6 +16,7 @@
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "gifenc": "^1.0.3",
     "jsqr": "^1.4.0",
     "koffi": "^3.3.1"
@@ -23,7 +24,13 @@
   "build": {
     "appId": "ai.xtractify.took",
     "productName": "Took",
-    "publish": null,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dimon-kee",
+        "repo": "took"
+      }
+    ],
     "files": [
       "src/**/*",
       "assets/**/*",
@@ -42,7 +49,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     }
   }
 }

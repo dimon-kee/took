@@ -58,6 +58,30 @@
         <button class="link" id="btn-reset-dir" type="button" data-i18n="settings.resetDir"></button>
       </section>
 
+      <section>
+        <h2 data-i18n="settings.updates"></h2>
+
+        <div class="row">
+          <label data-i18n="settings.version"></label>
+          <span class="version" id="app-version"></span>
+          <button class="ghost" id="btn-check-update" type="button" data-i18n="settings.checkUpdates"></button>
+        </div>
+
+        <div class="row update-row hidden" id="update-row">
+          <span class="update-status" id="update-status"></span>
+          <button class="primary" id="btn-update-action" type="button"></button>
+        </div>
+
+        <div class="row">
+          <label for="auto-update" data-i18n="settings.autoUpdateLabel"></label>
+          <label class="check">
+            <input type="checkbox" id="auto-update" />
+            <i></i>
+            <span data-i18n="settings.autoUpdate"></span>
+          </label>
+        </div>
+      </section>
+
       <div id="error" class="error hidden"></div>
     </main>
 

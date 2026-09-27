@@ -177,6 +177,8 @@ Tray menu → Settings…
 
 Settings live in `%APPDATA%\Took\settings.json`. A corrupt or missing file falls back to defaults instead of failing to start. If the directory later disappears — external drive unplugged, folder deleted — captures fall back to `Pictures/Took` rather than being lost.
 
+**Updates** — the version you are running, and *Check for updates*. With *Download and install updates automatically* on (the default), Took checks shortly after it starts and every six hours, downloads in the background and offers a restart from the tray; ignore the offer and the update installs the next time Took quits. Turned off, it never goes online by itself: *Check for updates* asks, and a new version downloads only when you press *Download and install*. The dev build (`task dev`) cannot update itself and says so.
+
 ## Layout
 
 ```
@@ -188,6 +190,7 @@ src/
 │   ├── settings.js        persisted preferences
 │   ├── cursor.js          global pointer position + click edges (koffi → user32)
 │   ├── longcapture.js     scrolling screenshot: hide from capture, let the wheel through
+│   ├── updater.js         checking for, downloading and installing updates
 │   ├── clipboard.js       clipboard writes on Electron 44's async API
 │   ├── autolaunch.js      start-with-Windows registration
 │   ├── win32.js           Win32 bits Electron does not expose
@@ -228,6 +231,8 @@ Hotkey to visible is about 600ms, down from 1900ms. `task check:latency` measure
 
 **Scrolling screenshots are stitched from a live stream.** The region is cropped out of a desktop MediaStream frame by frame. Each frame's rows are hashed and vote on how far the content moved since the last frame, up or down; rows that come into view past either end of the image are added there. Fixed bars show up as rows that stay put. A new position has to agree with the rows voting for it and with everything the image already holds there, and if more than one position would fit — a page that repeats a picture can line up on the repeat — the frame is skipped rather than guessed at. The pointer is part of every captured frame, so the rows it covers are marked and redone from a later frame once it has moved on. `task check:stitch` runs the matcher against synthetic pages with known answers — hundreds of random ones scrolled both ways, plus fixed bars, scrollbars, a resting pointer and a flick too fast to follow — and `task check:longshot` runs the whole thing end to end.
 
+**Updates come from GitHub Releases** through electron-updater. electron-builder writes `resources/app-update.yml` into the installed app from the `publish` block in `package.json`, and CI attaches `latest.yml` (version, file name, SHA-512) and the installer's blockmap to every release — so a download is verified before it runs, and later updates fetch only the blocks that changed. `task check:update` runs the updater against a local stand-in for GitHub; after publishing, `task check:update -- --live` downloads the newest real release and checks it against its `latest.yml`.
+
 **The overlay is a tool window, and leaves the capture while it scrolls.** Chromium — every browser, every Electron app — stops painting a window it believes is fully covered, and a topmost screen-sized window counts unless it is a tool window; without that, the page being scrolled freezes. During a scrolling screenshot the overlay is also excluded from screen capture (`setContentProtection`), so its dimming and panel never reach the frames, and it lets the mouse through only inside the region.
 
 ## Development tools
@@ -244,6 +249,7 @@ Everything under `tools/` has a matching task:
 | `check-clicks.js` | `task check:clicks` | Clicks the screenshot ✓, the recording card's dropdowns and the settings checkbox with real mouse input. The previews use `element.click()`, which has no press before it, so anything that reacts to mousedown goes untested there |
 | `check-stitch.js` | `task check:stitch` | Feeds the scrolling-screenshot stitcher synthetic pages with known answers, scrolled unevenly, and checks every offset and the result pixel for pixel. Plain Node, so CI runs it too |
 | `check-longshot.js` | `task check:longshot` | A scrolling screenshot end to end through the real overlay and a live stream: a page numbering its own pixel rows is scrolled under the selection, and the result must read those numbers back unbroken. Puts an overlay on screen for a few seconds |
+| `check-update.js` | `task check:update` | The updater against a local stand-in for GitHub: up to date, update found, verified download, tampered download, server down, automatic mode. `-- --live` downloads the newest real release instead |
 | `check-clipboard.js` | `task check:clipboard` | Copies an image, a file and text for real and reads them back from a separate process, the way a pasting app sees them; also fails on any call to the synchronous clipboard helpers Electron 44 removed. Puts your clipboard back afterwards |
 | `check-latency.js` | `task check:latency` | Times the hotkey-to-overlay path and confirms the grabbed frame is not blank |
 | `check-capture-speed.js` | `task check:capture-speed` | Breaks down where desktopCapturer spends its time versus a MediaStream frame grab — the evidence for not using it on the hot path |

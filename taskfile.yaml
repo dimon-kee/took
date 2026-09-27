@@ -116,6 +116,11 @@ tasks:
       # 会在主屏幕上盖几秒覆盖层，期间别动鼠标 —— 指针也会被抓进画面。
       - cmd: npx electron tools/check-longshot.js
 
+  check:update:
+    desc: Run the updater against a local stand-in for GitHub (-- --live for the real releases)
+    cmds:
+      - cmd: npx electron tools/check-update.js {{.CLI_ARGS}}
+
   check:clipboard:
     desc: Copy an image, a file and text for real, and read them back from another process
     cmds:
@@ -164,6 +169,7 @@ tasks:
       - task: check:clicks
       - task: check:stitch
       - task: check:longshot
+      - task: check:update
       - task: check:clipboard
       - task: check:capture
       - task: check:latency

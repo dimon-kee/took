@@ -8,6 +8,12 @@ const T = (key, vars) => window.i18n.t(key, vars);
     saveDir: document.getElementById('save-dir'),
     langRow: document.getElementById('lang-row'),
     autoLaunch: document.getElementById('auto-launch'),
+    version: document.getElementById('app-version'),
+    checkUpdate: document.getElementById('btn-check-update'),
+    updateRow: document.getElementById('update-row'),
+    updateStatus: document.getElementById('update-status'),
+    updateAction: document.getElementById('btn-update-action'),
+    autoUpdate: document.getElementById('auto-update'),
     error: document.getElementById('error'),
     status: document.getElementById('status'),
   };
@@ -22,6 +28,7 @@ const T = (key, vars) => window.i18n.t(key, vars);
   // Remember what we loaded so a save only touches it when the user actually
   // changed it here.
   let loadedAutoLaunch = false;
+  let update = { status: 'idle' }; // the updater's state, as main last reported it
 
   init();
 
@@ -31,6 +38,8 @@ const T = (key, vars) => window.i18n.t(key, vars);
     current = data.settings;
     current.autoLaunch = Boolean(data.autoLaunch);
     loadedAutoLaunch = current.autoLaunch;
+    els.version.textContent = data.version;
+    renderUpdate(data.update);
 
     wire();
     // After wire(), not before: the language buttons do not exist until
@@ -51,6 +60,35 @@ const T = (key, vars) => window.i18n.t(key, vars);
     });
 
     els.autoLaunch.checked = current.autoLaunch;
+    els.autoUpdate.checked = current.autoUpdate;
+  }
+
+  /**
+   * Checking and installing happen straight away, not on Save — only the
+   * automatic-updates switch is a setting.
+   */
+  function renderUpdate(state) {
+    update = state || { status: 'idle' };
+    const { status, version, percent, message } = update;
+
+    const text = {
+      checking: T('update.checking'),
+      latest: T('update.latest'),
+      available: T('update.available', { version }),
+      downloading: T('update.downloading', { version, percent: percent || 0 }),
+      ready: T('update.ready', { version }),
+      error: T('update.error', { message }),
+      unsupported: T('update.unsupported'),
+    }[status];
+    els.updateRow.classList.toggle('hidden', !text);
+    els.updateStatus.textContent = text || '';
+    els.updateStatus.classList.toggle('warn', status === 'error');
+
+    const action = { available: T('update.download'), ready: T('update.install') }[status];
+    els.updateAction.classList.toggle('hidden', !action);
+    els.updateAction.textContent = action || '';
+
+    els.checkUpdate.disabled = status === 'checking' || status === 'downloading';
   }
 
   function buildLanguages() {
@@ -83,6 +121,18 @@ const T = (key, vars) => window.i18n.t(key, vars);
       current.autoLaunch = els.autoLaunch.checked;
       clearError();
     });
+
+    els.autoUpdate.addEventListener('change', () => {
+      current.autoUpdate = els.autoUpdate.checked;
+      clearError();
+    });
+
+    els.checkUpdate.addEventListener('click', async () => renderUpdate(await window.took.checkUpdate()));
+    els.updateAction.addEventListener('click', async () => {
+      if (update.status === 'available') renderUpdate(await window.took.downloadUpdate());
+      else if (update.status === 'ready') window.took.installUpdate();
+    });
+    window.took.onUpdate(renderUpdate);
 
     document.querySelectorAll('.hotkey').forEach((btn) => {
       btn.addEventListener('click', () => startListening(btn));

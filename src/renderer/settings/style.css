@@ -213,6 +213,37 @@ h2 {
   text-overflow: ellipsis;
 }
 
+/* --- updates ------------------------------------------------------------- */
+
+.version {
+  min-width: 64px;
+  color: rgba(255, 255, 255, 0.9);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sits under the version row, lined up with the fields rather than the
+   labels (104px column + 10px gap). */
+.update-row {
+  margin-left: 114px;
+}
+
+.update-status {
+  flex: 1;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.update-status.warn {
+  color: #ff9c9e;
+}
+
+.ghost:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 /* --- buttons ------------------------------------------------------------- */
 
 .ghost,

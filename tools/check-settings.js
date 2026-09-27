@@ -50,6 +50,16 @@ function run() {
   check('保存目录留空走默认', defaults.saveDir === null);
   check('默认目录可解析', fs.existsSync(settings.saveDir()), settings.saveDir());
 
+  console.log('\n自动更新');
+  check('默认开着', defaults.autoUpdate === true);
+  settings.set({ autoUpdate: false });
+  check('关掉并写盘', JSON.parse(fs.readFileSync(settings.file(), 'utf8')).autoUpdate === false);
+  settings.set({ language: 'zh' });
+  check('改别的设置不会把它改回来', settings.get().autoUpdate === false);
+  settings.set({ autoUpdate: 'yes' });
+  check('不是 true/false 的值不理', settings.get().autoUpdate === false);
+  settings.set({ autoUpdate: true, language: 'en' });
+
   console.log('\n语言');
   check('默认是英文', defaults.language === 'en');
   settings.set({ language: 'zh' });

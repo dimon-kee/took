@@ -9,6 +9,11 @@ contextBridge.exposeInMainWorld('took', {
   pickDir: (current) => ipcRenderer.invoke('settings:pick-dir', current),
   openDir: () => ipcRenderer.send('settings:open-dir'),
   close: () => ipcRenderer.send('settings:close'),
+
+  checkUpdate: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdate: (fn) => ipcRenderer.on('update:state', (_e, state) => fn(state)),
 });
 
 setupI18n();

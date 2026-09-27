@@ -22,6 +22,8 @@ const DEFAULTS = {
   },
   // null means "wherever saveDir() lands", i.e. Pictures/Took
   saveDir: null,
+  // Check, download and install updates without being asked.
+  autoUpdate: true,
 };
 
 let cache = null;
@@ -39,6 +41,7 @@ function load() {
       language: normalizeLanguage(raw.language),
       shortcuts: { ...DEFAULTS.shortcuts, ...(raw.shortcuts || {}) },
       saveDir: typeof raw.saveDir === 'string' && raw.saveDir ? raw.saveDir : null,
+      autoUpdate: typeof raw.autoUpdate === 'boolean' ? raw.autoUpdate : DEFAULTS.autoUpdate,
     };
   } catch {
     // Missing or corrupt — fall back to defaults rather than refusing to start.
@@ -57,6 +60,7 @@ function set(patch) {
   if (patch.language) next.language = normalizeLanguage(patch.language);
   if (patch.shortcuts) Object.assign(next.shortcuts, patch.shortcuts);
   if ('saveDir' in patch) next.saveDir = patch.saveDir || null;
+  if (typeof patch.autoUpdate === 'boolean') next.autoUpdate = patch.autoUpdate;
 
   try {
     fs.mkdirSync(path.dirname(file()), { recursive: true });

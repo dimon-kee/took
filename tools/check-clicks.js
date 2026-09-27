@@ -159,7 +159,7 @@ async function recordCard() {
 async function settingsWindow() {
   console.log('\n设置窗口的勾选框');
 
-  const win = open('settings', { width: 580, height: 580 });
+  const win = open('settings', { width: 580, height: 680 });
   await win.loadFile(path.join(ROOT, 'src', 'renderer', 'settings', 'index.html'));
   await wait(500);
 

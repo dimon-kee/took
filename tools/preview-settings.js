@@ -25,6 +25,8 @@ const OUT = process.argv[2] || path.join(app.getPath('temp'), 'took-preview');
 ipcMain.handle('settings:load', () => ({
   settings: settings.get(),
   autoLaunch: true,
+  version: '0.1.2',
+  update: { status: 'latest' },
   defaults: {
     ...settings.DEFAULTS,
     saveDirLabel: settings.saveDir(),
@@ -33,6 +35,9 @@ ipcMain.handle('settings:load', () => ({
 }));
 ipcMain.handle('settings:save', () => ({ ok: false, conflicts: ['record'] }));
 ipcMain.handle('settings:pick-dir', () => null);
+ipcMain.handle('update:check', () => ({ status: 'checking' }));
+ipcMain.handle('update:download', () => ({ status: 'downloading', version: '0.2.0', percent: 0 }));
+ipcMain.handle('update:install', () => false);
 ipcMain.on('settings:open-dir', () => {});
 ipcMain.on('settings:close', () => {});
 
@@ -41,7 +46,7 @@ app.whenReady().then(async () => {
 
   const win = new BrowserWindow({
     width: 580,
-    height: 580,
+    height: 680,
     show: true,
     useContentSize: true,
     webPreferences: {
@@ -69,6 +74,17 @@ app.whenReady().then(async () => {
        { code: 'KeyJ', ctrlKey: true, altKey: true, bubbles: true }));
      document.getElementById('btn-save').click();`
   );
+
+  // The updates section in each state main can report.
+  for (const [name, state] of [
+    ['settings-d-update-available', { status: 'available', version: '0.2.0' }],
+    ['settings-e-update-downloading', { status: 'downloading', version: '0.2.0', percent: 42 }],
+    ['settings-f-update-ready', { status: 'ready', version: '0.2.0' }],
+    ['settings-g-update-error', { status: 'error', message: 'net::ERR_INTERNET_DISCONNECTED' }],
+  ]) {
+    win.webContents.send('update:state', state);
+    await shoot(win, name, 'document.querySelector("main").scrollTop = 1e6;');
+  }
 
   console.log(`\n预览图写在: ${OUT}`);
   app.exit(0);

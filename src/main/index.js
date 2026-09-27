@@ -23,6 +23,7 @@ const screens = require('./screens');
 const cursorTracker = require('./cursor');
 const longCapture = require('./longcapture');
 const autoLaunch = require('./autolaunch');
+const updater = require('./updater');
 const settings = require('./settings');
 const { pngFromDataURL, copyImage, copyFile, copyText } = require('./clipboard');
 const { createTranslator, LANGUAGES } = require('../shared/i18n');
@@ -101,6 +102,11 @@ app.whenReady().then(() => {
   // Enumerating capture sources takes about a second; get it out of the way
   // now so the first hotkey press does not have to wait for it.
   screens.warmUp();
+  updater.init({
+    autoUpdate: settings.get().autoUpdate,
+    onChange: (state) => sendToSettings('update:state', state),
+    onReady: (version) => offerRestart(version),
+  });
 });
 
 app.on('will-quit', () => globalShortcut.unregisterAll());
@@ -123,6 +129,24 @@ function setupTray() {
   tray.setToolTip(t('app.tooltip'));
   refreshTrayMenu();
   tray.on('click', () => startCapture());
+  // The only balloon the tray ever shows is the update offer.
+  tray.on('balloon-click', () => updater.install(true));
+}
+
+/** An update has downloaded: offer the restart, unless settings already shows it. */
+function offerRestart(version) {
+  if (!tray || tray.isDestroyed()) return;
+  if (settingsWin && !settingsWin.isDestroyed() && settingsWin.isFocused()) return;
+  tray.displayBalloon({
+    iconType: 'info',
+    title: t('update.readyTitle', { version }),
+    content: t('update.readyBody'),
+  });
+}
+
+/** Quit — running a downloaded update on the way out, if one is waiting. */
+function quit() {
+  if (!updater.install(false)) app.exit(0);
 }
 
 /**
@@ -138,7 +162,7 @@ function refreshTrayMenu() {
       { label: `${t('tray.record')}  ${prettyKey(shortcutFor('record'))}`, click: () => startRecordSelection() },
       { type: 'separator' },
       { label: t('tray.settings'), click: () => openSettings() },
-      { label: t('tray.quit'), click: () => app.exit(0) },
+      { label: t('tray.quit'), click: () => quit() },
     ])
   );
 }
@@ -628,10 +652,16 @@ function openSettings() {
   });
 }
 
+function sendToSettings(channel, payload) {
+  if (settingsWin && !settingsWin.isDestroyed()) settingsWin.webContents.send(channel, payload);
+}
+
 ipcMain.handle('settings:load', () => ({
   settings: settings.get(),
   // Lives in the registry rather than settings.json, so report it separately.
   autoLaunch: autoLaunch.enabled(),
+  version: app.getVersion(),
+  update: updater.get(),
   defaults: {
     ...settings.DEFAULTS,
     // What the placeholder path actually resolves to, so the field can show a
@@ -664,6 +694,7 @@ ipcMain.handle('settings:save', (event, next) => {
   // leaves the start-up entry changed on its own. The renderer sends this
   // field only when the user touched the checkbox.
   if (typeof next.autoLaunch === 'boolean') autoLaunch.set(next.autoLaunch);
+  if (previous.autoUpdate !== settings.get().autoUpdate) updater.setAuto(settings.get().autoUpdate);
 
   refreshTrayMenu();
 
@@ -681,6 +712,10 @@ ipcMain.handle('settings:save', (event, next) => {
 
   return { ok: true, languageChanged };
 });
+
+ipcMain.handle('update:check', () => updater.check());
+ipcMain.handle('update:download', () => updater.download());
+ipcMain.handle('update:install', () => updater.install(true));
 
 ipcMain.handle('settings:pick-dir', async (event, current) => {
   const win = BrowserWindow.fromWebContents(event.sender);
