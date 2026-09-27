@@ -9,13 +9,15 @@
  * got through: the cursor-effect ticks and the device pickers dismissed their
  * menu on the press, and the item under the pointer never got its click.
  *
+ * The clipboard itself is check-clipboard.js's job; here main's side is a stub.
+ *
  *   npx electron tools/check-clicks.js
  */
 
 const path = require('path');
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeImage } = require('electron');
 const { DEFAULTS } = require('../src/main/settings');
-const { LANGUAGES } = require('../src/shared/i18n');
+const { LANGUAGES, createTranslator } = require('../src/shared/i18n');
 
 app.on('window-all-closed', () => {});
 
@@ -31,8 +33,28 @@ function check(label, condition, detail) {
 }
 
 // This harness is its own entry point, so stand in for the app's IPC.
-['overlay:webcam', 'overlay:copy', 'overlay:save', 'overlay:pin', 'overlay:copy-text',
+['overlay:webcam', 'overlay:save', 'overlay:pin', 'overlay:copy-text',
  'overlay:record'].forEach((channel) => ipcMain.handle(channel, () => false));
+
+// Answers the way main does when the clipboard write fails, so the overlay's
+// failure path gets exercised too.
+let copied = null;
+ipcMain.handle('overlay:copy', (event, dataURL) => {
+  copied = dataURL;
+  return false;
+});
+
+// No real desktop to grab here, so the overlay falls back to asking main for a
+// PNG — hand it a flat one.
+let desktop = null;
+ipcMain.handle('overlay:fallback-shot', () => {
+  if (!desktop) {
+    const raw = Buffer.alloc(W * H * 4);
+    for (let i = 0; i < raw.length; i += 4) raw.set([0xf4, 0xed, 0xe9, 0xff], i); // BGRA
+    desktop = nativeImage.createFromBuffer(raw, { width: W, height: H }).toDataURL();
+  }
+  return desktop;
+});
 
 let saved = null;
 ipcMain.handle('settings:load', () => ({
@@ -50,6 +72,7 @@ ipcMain.on('settings:close', () => {});
 
 app.whenReady().then(async () => {
   try {
+    await confirmButton();
     await recordCard();
     await settingsWindow();
   } catch (err) {
@@ -61,37 +84,34 @@ app.whenReady().then(async () => {
   app.exit(failures ? 1 : 0);
 });
 
-async function recordCard() {
-  console.log('录屏卡片的下拉菜单');
+async function confirmButton() {
+  console.log('截图工具栏的 ✓');
 
-  const win = open('overlay', { width: W, height: H, frame: false });
-  await win.loadFile(path.join(ROOT, 'src', 'renderer', 'overlay', 'index.html'));
+  const win = await openOverlay('capture');
+  const page = driver(win);
 
-  // No real desktop to grab here — let the overlay fall back to a PNG.
-  const blank = await win.webContents.executeJavaScript(`(() => {
-    const c = document.createElement('canvas');
-    c.width = ${W}; c.height = ${H};
-    const x = c.getContext('2d');
-    x.fillStyle = '#e9edf4'; x.fillRect(0, 0, ${W}, ${H});
-    return c.toDataURL('image/png');
+  await page.clickAt(420, 300); // accept the pre-selected full screen
+  await page.clickOn('.tool[data-id="confirm"]');
+
+  check(
+    '点 ✓ 把截图交给主进程',
+    typeof copied === 'string' && copied.startsWith('data:image/png;base64,'),
+    copied ? `${Math.round(copied.length / 1024)} KB` : '没收到'
+  );
+
+  const toast = await page.run(`(() => {
+    const t = document.getElementById('toast');
+    return t.classList.contains('hidden') ? null : t.textContent;
   })()`);
-  ipcMain.handle('overlay:fallback-shot', () => blank);
+  check('复制失败时提示，而不是没反应', toast === createTranslator('en')('toast.copyFailed'), toast || '没有提示');
 
-  win.webContents.send('overlay:init', {
-    mode: 'record',
-    isPrimary: true,
-    cursor: { x: 420, y: 300 },
-    shot: {
-      displayId: 1,
-      sourceId: null,
-      bounds: { x: 0, y: 0, width: W, height: H },
-      workArea: { x: 0, y: 0, width: W, height: H - 48 },
-      scaleFactor: 1,
-      pixelSize: { width: W, height: H },
-    },
-  });
-  await wait(800);
+  win.destroy();
+}
 
+async function recordCard() {
+  console.log('\n录屏卡片的下拉菜单');
+
+  const win = await openOverlay('record');
   const page = driver(win);
   const menu = () =>
     page.run(`(() => {
@@ -165,6 +185,28 @@ async function settingsWindow() {
   check('改过的值随保存发给主进程', saved && saved.autoLaunch === false, `autoLaunch=${saved && saved.autoLaunch}`);
 
   win.destroy();
+}
+
+async function openOverlay(mode) {
+  const win = open('overlay', { width: W, height: H, frame: false });
+  await win.loadFile(path.join(ROOT, 'src', 'renderer', 'overlay', 'index.html'));
+
+  win.webContents.send('overlay:init', {
+    mode,
+    isPrimary: true,
+    cursor: { x: 420, y: 300 },
+    shot: {
+      displayId: 1,
+      sourceId: null,
+      bounds: { x: 0, y: 0, width: W, height: H },
+      workArea: { x: 0, y: 0, width: W, height: H - 48 },
+      scaleFactor: 1,
+      pixelSize: { width: W, height: H },
+    },
+  });
+  await wait(800);
+
+  return win;
 }
 
 function open(preload, options) {

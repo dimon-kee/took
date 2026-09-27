@@ -59,6 +59,7 @@ const en = {
   'toast.copiedColour': 'Copied {value}',
   'toast.qrFound': 'Decoded and copied:\n{text}',
   'toast.qrMissing': 'No QR code found in the selection',
+  'toast.copyFailed': 'Could not copy to the clipboard — try Save instead',
 
   // recording setup card
   'rec.start': 'Start recording',
@@ -200,6 +201,7 @@ const zh = {
   'toast.copiedColour': '已复制 {value}',
   'toast.qrFound': '已识别并复制:\n{text}',
   'toast.qrMissing': '没有在选区里找到二维码',
+  'toast.copyFailed': '复制到剪贴板失败，可以改用保存',
 
   'rec.start': '开始录制',
   'rec.format': '选择格式',

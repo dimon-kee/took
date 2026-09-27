@@ -9,7 +9,6 @@ const {
   Menu,
   globalShortcut,
   ipcMain,
-  clipboard,
   nativeImage,
   dialog,
   desktopCapturer,
@@ -24,6 +23,7 @@ const screens = require('./screens');
 const cursorTracker = require('./cursor');
 const autoLaunch = require('./autolaunch');
 const settings = require('./settings');
+const { pngFromDataURL, copyImage, copyFile, copyText } = require('./clipboard');
 const { createTranslator, LANGUAGES } = require('../shared/i18n');
 
 /**
@@ -288,8 +288,14 @@ ipcMain.on('overlay:cancel', () => {
   closeOverlays();
 });
 
-ipcMain.handle('overlay:copy', (event, dataURL) => {
-  clipboard.writeImage(nativeImage.createFromDataURL(dataURL));
+ipcMain.handle('overlay:copy', async (event, dataURL) => {
+  try {
+    await copyImage(pngFromDataURL(dataURL));
+  } catch (err) {
+    // Leave the overlay up: closing it now would throw the screenshot away.
+    console.error('[took] 复制截图失败:', err);
+    return false;
+  }
   closeOverlays();
   return true;
 });
@@ -323,8 +329,8 @@ ipcMain.handle('overlay:pin', (event, { dataURL, rect }) => {
   return true;
 });
 
-ipcMain.handle('overlay:copy-text', (event, text) => {
-  clipboard.writeText(String(text));
+ipcMain.handle('overlay:copy-text', async (event, text) => {
+  await copyText(text);
   return true;
 });
 
@@ -338,7 +344,7 @@ ipcMain.on('pin:close', (event) => {
 });
 
 ipcMain.on('pin:copy', (event, dataURL) => {
-  clipboard.writeImage(nativeImage.createFromDataURL(dataURL));
+  copyImage(pngFromDataURL(dataURL)).catch((err) => console.error('[took] 复制贴图失败:', err));
 });
 
 ipcMain.on('pin:set-opacity', (event, value) => {
@@ -537,28 +543,18 @@ ipcMain.handle('editor:save', async (event) => {
   return true;
 });
 
-ipcMain.handle('editor:copy', () => {
+ipcMain.handle('editor:copy', async () => {
   if (!lastClip) return false;
   try {
-    // A GIF can go on the clipboard as a bitmap too, which is what most chat
-    // apps paste; the file reference covers Explorer and everything else.
-    if (lastClip.ext === 'gif') {
-      clipboard.writeImage(nativeImage.createFromPath(lastClip.file));
-    }
-    writeFileToClipboard(lastClip.file);
+    // As a file reference, so the clip pastes as the file itself. There is no
+    // picture version to put beside a GIF: nativeImage cannot decode one.
+    await copyFile(lastClip.file);
     return true;
   } catch (err) {
     console.error('[took] 复制录屏失败:', err);
     return false;
   }
 });
-
-/** Windows pastes a file when CF_HDROP-style 'FileNameW' data is present. */
-function writeFileToClipboard(file) {
-  if (process.platform !== 'win32') return;
-  const buffer = Buffer.from(`${file}\0`, 'ucs2');
-  clipboard.writeBuffer('FileNameW', buffer);
-}
 
 function extensionFor(mime) {
   if (!mime) return 'webm';

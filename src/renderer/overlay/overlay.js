@@ -136,7 +136,7 @@
   // silently inert — S.ready never flips and even Esc stops working.
   window.addEventListener('unhandledrejection', (e) => {
     const reason = e.reason;
-    console.error('[took] overlay 初始化失败:', (reason && reason.stack) || reason);
+    console.error('[took] overlay 未处理的异常:', (reason && reason.stack) || reason);
   });
 
   window.took.onInit(async (payload) => {
@@ -1328,7 +1328,11 @@
       return;
     }
 
-    window.took.copy(composite().toDataURL('image/png'));
+    window.took.copy(composite().toDataURL('image/png')).then((ok) => {
+      // Main leaves the overlay up when the write fails; say so, rather than
+      // sit there looking like the click never landed.
+      if (!ok) toast(T('toast.copyFailed'), 2600);
+    });
   }
 
   function doSave() {

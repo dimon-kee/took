@@ -128,7 +128,7 @@ Space pauses and resumes, `Enter` finishes, `Esc` discards. One hour is the cap,
 
 When you stop, an *Edit recording* window opens: player, scrubber, *Save* and *Copy to clipboard*. The file sits in a temp directory until you decide where it goes.
 
-Copying an MP4 puts a file reference on the clipboard, which pastes into Explorer and chat apps; a GIF additionally goes on as a bitmap.
+Copying puts the clip on the clipboard as a file reference, MP4 and GIF alike, so it pastes as the file itself into Explorer and chat apps.
 
 > This version previews and exports only — there is no trim timeline.
 
@@ -166,6 +166,7 @@ src/
 │   ├── screens.js         cached desktopCapturer source IDs
 │   ├── settings.js        persisted preferences
 │   ├── cursor.js          global pointer position + click edges (koffi → user32)
+│   ├── clipboard.js       clipboard writes on Electron 44's async API
 │   ├── autolaunch.js      start-with-Windows registration
 │   ├── win32.js           Win32 bits Electron does not expose
 │   └── windows.js         window construction
@@ -212,7 +213,8 @@ Everything under `tools/` has a matching task:
 | `check-i18n.js` | `task check:i18n` | Both languages define the same keys, every referenced key exists, none are dead, and no user-facing Chinese is left hardcoded |
 | `check-scripts.js` | `task check:scripts` | Several classic scripts share each page's global scope; a top-level redeclaration between them stops the later one loading, and `node --check` cannot see it |
 | `check-settings.js` | `task check:settings` | Exercises the settings store, the save-path fallback and the hotkey conflict rollback |
-| `check-clicks.js` | `task check:clicks` | Clicks the recording card's dropdowns and the settings checkbox with real mouse input. The previews use `element.click()`, which has no press before it, so anything that reacts to mousedown goes untested there |
+| `check-clicks.js` | `task check:clicks` | Clicks the screenshot ✓, the recording card's dropdowns and the settings checkbox with real mouse input. The previews use `element.click()`, which has no press before it, so anything that reacts to mousedown goes untested there |
+| `check-clipboard.js` | `task check:clipboard` | Copies an image, a file and text for real and reads them back from a separate process, the way a pasting app sees them; also fails on any call to the synchronous clipboard helpers Electron 44 removed. Puts your clipboard back afterwards |
 | `check-latency.js` | `task check:latency` | Times the hotkey-to-overlay path and confirms the grabbed frame is not blank |
 | `check-capture-speed.js` | `task check:capture-speed` | Breaks down where desktopCapturer spends its time versus a MediaStream frame grab — the evidence for not using it on the hot path |
 | `check-flash.js` | `task check:flash` | Films the overlay appearing and measures per-frame luminance, turning "it flashes" into a number |

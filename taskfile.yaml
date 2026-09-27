@@ -100,10 +100,16 @@ tasks:
       - cmd: node tools/check-scripts.js
 
   check:clicks:
-    desc: Click the recording card's dropdowns and the settings checkbox with real mouse input
+    desc: Click the screenshot ✓, the recording card's dropdowns and the settings checkbox with real mouse input
     cmds:
       # preview 用的 element.click() 不带 mousedown，按下时就触发的逻辑它测不到。
       - cmd: npx electron tools/check-clicks.js
+
+  check:clipboard:
+    desc: Copy an image, a file and text for real, and read them back from another process
+    cmds:
+      # 会临时占用剪贴板，跑完把原来的内容放回去。
+      - cmd: npx electron tools/check-clipboard.js
 
   check:latency:
     desc: Time the hotkey-to-overlay path, and confirm the grabbed frame is not blank
@@ -145,6 +151,7 @@ tasks:
       - task: check:scripts
       - task: check:settings
       - task: check:clicks
+      - task: check:clipboard
       - task: check:capture
       - task: check:latency
       - task: check:media

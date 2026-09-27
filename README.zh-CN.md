@@ -128,7 +128,7 @@ task autostart:on
 
 录完弹出 `编辑录屏` 窗口:播放器 + 进度条 + `下载` + `复制到剪贴板`。文件先落在临时目录,你决定了再存。
 
-复制到剪贴板对 MP4 是文件引用(能粘到资源管理器、聊天软件),GIF 会额外写一份位图。
+复制到剪贴板放的是文件引用,MP4 和 GIF 都一样,粘到资源管理器、聊天软件里就是这个文件本身。
 
 > 当前版本只有预览和导出,没有裁剪时间轴。
 
@@ -166,6 +166,7 @@ src/
 │   ├── screens.js         desktopCapturer 源 ID 的缓存
 │   ├── settings.js        配置的读写与持久化
 │   ├── cursor.js          全局鼠标位置 + 点击边沿(koffi → user32)
+│   ├── clipboard.js       剪贴板写入(Electron 44 的异步接口)
 │   ├── autolaunch.js      开机自启的注册
 │   ├── win32.js           Electron 没暴露的那几个 Win32 能力
 │   └── windows.js         各类窗口的构造
@@ -212,7 +213,8 @@ src/
 | `check-i18n.js` | `task check:i18n` | 两种语言的键完全一致、引用的键都存在、没有死键、没有遗留的硬编码中文 |
 | `check-scripts.js` | `task check:scripts` | 同一页面的多个普通脚本共用全局作用域,顶层重复声明会让后一个脚本整个加载失败,而 `node --check` 看不到 |
 | `check-settings.js` | `task check:settings` | 校验配置读写、保存目录失效时的退回、快捷键冲突时的回滚 |
-| `check-clicks.js` | `task check:clicks` | 用真实的鼠标事件点录屏卡片的下拉菜单和设置里的勾选框。预览脚本用的 `element.click()` 前面没有按下这一步,按下时就触发的逻辑在那里测不到 |
+| `check-clicks.js` | `task check:clicks` | 用真实的鼠标事件点截图工具栏的 ✓、录屏卡片的下拉菜单和设置里的勾选框。预览脚本用的 `element.click()` 前面没有按下这一步,按下时就触发的逻辑在那里测不到 |
+| `check-clipboard.js` | `task check:clipboard` | 真的往剪贴板写图片、文件和文字,再从另一个进程读回来,看到的就是别的程序粘贴时拿到的东西;代码里只要还调用 Electron 44 删掉的同步剪贴板接口就报错。跑完把剪贴板原来的内容放回去 |
 | `check-latency.js` | `task check:latency` | 量从快捷键到画面可见的耗时,并确认抓到的帧不是黑的 |
 | `check-capture-speed.js` | `task check:capture-speed` | 拆解 desktopCapturer 慢在哪,和 MediaStream 抓帧对比。截图为什么不走 desktopCapturer 的依据 |
 | `check-flash.js` | `task check:flash` | 录下覆盖层出现的过程逐帧测亮度,把「闪一下」变成可复测的数字 |
