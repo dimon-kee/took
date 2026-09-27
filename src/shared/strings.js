@@ -23,6 +23,8 @@ const en = {
   'tray.record': 'Record screen',
   'tray.settings': 'Settings…',
   'tray.quit': 'Quit',
+  'tray.runningTitle': '{app} is already running',
+  'tray.runningBody': 'It is waiting in the tray. Press {key} to take a screenshot.',
 
   // overlay chrome
   'overlay.modeCapture': 'Capture',
@@ -197,6 +199,8 @@ const zh = {
   'tray.record': '录屏',
   'tray.settings': '设置…',
   'tray.quit': '退出',
+  'tray.runningTitle': '{app} 已经在运行',
+  'tray.runningBody': '它在托盘里待命，按 {key} 截图。',
 
   'overlay.modeCapture': '截图',
   'overlay.modeLong': '长截图',

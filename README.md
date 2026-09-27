@@ -24,6 +24,8 @@ task dev
 
 Without go-task installed, `npm start` / `npm run dev` / `npm run dist` work too.
 
+The dev build and an installed Took share their settings and count as one app: with either running, starting the other only brings up an "already running" notice from the first. `task stop` stops both.
+
 ## Start with Windows
 
 Tick "Start with Windows" under Settings → General, or:
@@ -48,6 +50,8 @@ At boot the app goes straight to the tray without opening a window.
 Those are the defaults; both can be changed from the tray menu's settings window — see [Settings](#settings).
 
 The app shows no window at all until a hotkey fires. Then the whole screen freezes and a `⋮⋮ Capture │ Scrolling │ Record` mode bar floats in at the top; everything disappears once you finish. The bar can be dragged, and it steps out of the way as soon as you pick an annotation tool.
+
+Starting Took again while it runs — from the Start menu, or the installer's *Run Took* — opens nothing either; a notification says it is already in the tray.
 
 ## Screenshots
 
@@ -256,6 +260,7 @@ Everything under `tools/` has a matching task:
 | `check-scripts.js` | `task check:scripts` | Several classic scripts share each page's global scope; a top-level redeclaration between them stops the later one loading, and `node --check` cannot see it |
 | `check-settings.js` | `task check:settings` | Exercises the settings store, the save-path fallback and the hotkey conflict rollback |
 | `check-clicks.js` | `task check:clicks` | Clicks the screenshot ✓, the recording card's dropdowns and the settings checkbox with real mouse input. The previews use `element.click()`, which has no press before it, so anything that reacts to mousedown goes untested there |
+| `check-launch.js` | `task check:launch` | Starts Took again while it runs, as the Start menu or the installer's *Run Took* would: the running copy must stay in the tray rather than open a capture, and the new one must quit without starting up — its start-up would sweep the temp folder, taking the recording the running copy holds with it. Uses a data folder, temp folder and hotkeys of its own, so a real Took is untouched |
 | `check-stitch.js` | `task check:stitch` | Feeds the scrolling-screenshot stitcher synthetic pages with known answers, scrolled unevenly, and checks every offset and the result pixel for pixel. Plain Node, so CI runs it too |
 | `check-longshot.js` | `task check:longshot` | A scrolling screenshot end to end through the real overlay and a live stream: a page numbering its own pixel rows is scrolled under the selection, and the result must read those numbers back unbroken. Puts an overlay on screen for a few seconds |
 | `check-update.js` | `task check:update` | The updater against a local stand-in for GitHub: up to date, update found, verified download, tampered download, server down, automatic mode, clearing the cache after an update. `-- --live` downloads the newest real release instead |

@@ -105,6 +105,13 @@ tasks:
       # preview 用的 element.click() 不带 mousedown，按下时就触发的逻辑它测不到。
       - cmd: npx electron tools/check-clicks.js
 
+  check:launch:
+    desc: Start Took again while it runs — it must stay in the tray, and the new copy must quit without starting up
+    cmds:
+      # 数据目录、临时目录和快捷键都用自己的，不碰真的 Took。托盘里会多出一个
+      # 图标几秒钟，右下角会弹一条「已经在运行」的通知。
+      - cmd: node tools/check-launch.js
+
   check:stitch:
     desc: Stitch synthetic scrolling pages with known answers and check every offset and pixel
     cmds:
@@ -174,6 +181,7 @@ tasks:
       - task: check:scripts
       - task: check:settings
       - task: check:clicks
+      - task: check:launch
       - task: check:stitch
       - task: check:longshot
       - task: check:update

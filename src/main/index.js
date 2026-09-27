@@ -85,11 +85,16 @@ let recordSettings = null;
 let stopCursor = null;
 /** Last finished recording, parked in temp for the preview window. */
 let lastClip = null;
+/** What clicking the tray's balloon does; set by whichever balloon went up last. */
+let balloonClick = null;
 
-if (!app.requestSingleInstanceLock()) {
+// One Took at a time. Launching it again — from the Start menu, or the
+// installer's "Run Took" — only says it is already running.
+const primary = app.requestSingleInstanceLock();
+if (!primary) {
   app.quit();
 } else {
-  app.on('second-instance', () => startCapture());
+  app.on('second-instance', () => sayRunning());
 }
 
 // Tray-resident app: closing every window must not quit it.
@@ -97,6 +102,10 @@ app.on('window-all-closed', () => {});
 
 // Nothing is shown at startup: the app lives in the tray until a hotkey fires.
 app.whenReady().then(() => {
+  // A copy that lost the lock still gets here before it quits. Starting up
+  // would give it a tray icon of its own, and its sweep would delete the
+  // recording the running copy is holding.
+  if (!primary) return;
   clips.sweep();
   autoLaunch.refresh();
   setupTray();
@@ -134,19 +143,31 @@ function setupTray() {
   tray.setToolTip(t('app.tooltip'));
   refreshTrayMenu();
   tray.on('click', () => startCapture());
-  // The only balloon the tray ever shows is the update offer.
-  tray.on('balloon-click', () => updater.install(true));
+  tray.on('balloon-click', () => balloonClick && balloonClick());
+}
+
+function balloon(title, content, onClick = null) {
+  if (!tray || tray.isDestroyed()) return;
+  balloonClick = onClick;
+  tray.displayBalloon({ iconType: 'info', title, content });
 }
 
 /** An update has downloaded: offer the restart, unless settings already shows it. */
 function offerRestart(version) {
-  if (!tray || tray.isDestroyed()) return;
   if (settingsWin && !settingsWin.isDestroyed() && settingsWin.isFocused()) return;
-  tray.displayBalloon({
-    iconType: 'info',
-    title: t('update.readyTitle', { version }),
-    content: t('update.readyBody'),
-  });
+  balloon(t('update.readyTitle', { version }), t('update.readyBody'), () => updater.install(true));
+}
+
+/**
+ * Took was launched again while it runs: say so, rather than open a capture
+ * nobody asked for. A dev run says it is one — the installed build shares its
+ * lock, so launching that while `task dev` runs lands here too.
+ */
+function sayRunning() {
+  balloon(
+    t('tray.runningTitle', { app: app.isPackaged ? 'Took' : 'Took (dev)' }),
+    t('tray.runningBody', { key: prettyKey(shortcutFor('capture')) })
+  );
 }
 
 /** Quit — running a downloaded update on the way out, if one is waiting. */
