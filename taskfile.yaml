@@ -99,6 +99,12 @@ tasks:
       # node --check 看的是单个文件，看不到同一页面里多个脚本之间的重复声明。
       - cmd: node tools/check-scripts.js
 
+  check:clicks:
+    desc: Click the recording card's dropdowns and the settings checkbox with real mouse input
+    cmds:
+      # preview 用的 element.click() 不带 mousedown，按下时就触发的逻辑它测不到。
+      - cmd: npx electron tools/check-clicks.js
+
   check:latency:
     desc: Time the hotkey-to-overlay path, and confirm the grabbed frame is not blank
     cmds:
@@ -138,6 +144,7 @@ tasks:
       - task: check:i18n
       - task: check:scripts
       - task: check:settings
+      - task: check:clicks
       - task: check:capture
       - task: check:latency
       - task: check:media

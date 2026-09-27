@@ -212,6 +212,7 @@ src/
 | `check-i18n.js` | `task check:i18n` | 两种语言的键完全一致、引用的键都存在、没有死键、没有遗留的硬编码中文 |
 | `check-scripts.js` | `task check:scripts` | 同一页面的多个普通脚本共用全局作用域,顶层重复声明会让后一个脚本整个加载失败,而 `node --check` 看不到 |
 | `check-settings.js` | `task check:settings` | 校验配置读写、保存目录失效时的退回、快捷键冲突时的回滚 |
+| `check-clicks.js` | `task check:clicks` | 用真实的鼠标事件点录屏卡片的下拉菜单和设置里的勾选框。预览脚本用的 `element.click()` 前面没有按下这一步,按下时就触发的逻辑在那里测不到 |
 | `check-latency.js` | `task check:latency` | 量从快捷键到画面可见的耗时,并确认抓到的帧不是黑的 |
 | `check-capture-speed.js` | `task check:capture-speed` | 拆解 desktopCapturer 慢在哪,和 MediaStream 抓帧对比。截图为什么不走 desktopCapturer 的依据 |
 | `check-flash.js` | `task check:flash` | 录下覆盖层出现的过程逐帧测亮度,把「闪一下」变成可复测的数字 |

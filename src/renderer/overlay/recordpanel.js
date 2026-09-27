@@ -129,8 +129,20 @@ window.TookRecordPanel = (() => {
       }
     });
 
-    // Any click that is not inside a menu dismisses it.
-    document.addEventListener('mousedown', () => closeMenu(panel), true);
+    // Any press outside the menu dismisses it. This runs in the capture phase,
+    // ahead of the menu's own listeners, so it has to look at where the press
+    // landed: hiding the menu on a press inside it takes the item away before
+    // the button comes back up, and the item never gets its click. Carets are
+    // skipped too — their click handler does the toggling.
+    document.addEventListener(
+      'mousedown',
+      (e) => {
+        const t = e.target;
+        if (refs.menu.contains(t) || (t instanceof Element && t.closest('.dev-caret'))) return;
+        closeMenu(panel);
+      },
+      true
+    );
     refs.menu.addEventListener('mousedown', (e) => e.stopPropagation());
   }
 
