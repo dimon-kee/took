@@ -105,6 +105,17 @@ tasks:
       # preview 用的 element.click() 不带 mousedown，按下时就触发的逻辑它测不到。
       - cmd: npx electron tools/check-clicks.js
 
+  check:stitch:
+    desc: Stitch synthetic scrolling pages with known answers and check every offset and pixel
+    cmds:
+      - cmd: node tools/check-stitch.js {{.CLI_ARGS}}
+
+  check:longshot:
+    desc: Run a scrolling screenshot end to end through the real overlay and a live stream
+    cmds:
+      # 会在主屏幕上盖几秒覆盖层，期间别动鼠标 —— 指针也会被抓进画面。
+      - cmd: npx electron tools/check-longshot.js
+
   check:clipboard:
     desc: Copy an image, a file and text for real, and read them back from another process
     cmds:
@@ -151,6 +162,8 @@ tasks:
       - task: check:scripts
       - task: check:settings
       - task: check:clicks
+      - task: check:stitch
+      - task: check:longshot
       - task: check:clipboard
       - task: check:capture
       - task: check:latency

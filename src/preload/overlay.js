@@ -24,6 +24,12 @@ contextBridge.exposeInMainWorld('took', {
   startRecord: (payload) => ipcRenderer.invoke('overlay:record', payload),
   webcam: (payload) => ipcRenderer.invoke('overlay:webcam', payload),
 
+  /** Scrolling screenshot: main hides us from the capture and lets the wheel through. */
+  longStart: (rects) => ipcRenderer.invoke('overlay:long-start', rects),
+  longPanel: (rect) => ipcRenderer.send('overlay:long-panel', rect),
+  longStop: () => ipcRenderer.send('overlay:long-stop'),
+  onPointer: (fn) => ipcRenderer.on('overlay:pointer', (_e, p) => fn(p)),
+
   /** Decode a QR code out of raw RGBA pixels. Returns the text, or null. */
   decodeQR: (data, width, height) => {
     const result = jsQR(data, width, height, { inversionAttempts: 'attemptBoth' });

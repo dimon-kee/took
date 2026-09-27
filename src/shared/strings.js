@@ -26,6 +26,7 @@ const en = {
 
   // overlay chrome
   'overlay.modeCapture': 'Capture',
+  'overlay.modeLong': 'Scrolling',
   'overlay.modeRecord': 'Record',
   'overlay.drag': 'Drag',
 
@@ -73,6 +74,15 @@ const en = {
   'rec.mouseHighlight': 'Highlight the cursor',
   'rec.clickEffect': 'Show click ripples',
   'rec.deviceFallback': '{kind} {index}',
+
+  // scrolling screenshot
+  'long.start': 'Start',
+  'long.starting': 'Starting…',
+  'long.scroll': 'Scroll inside the frame',
+  'long.lost': 'Lost track — scroll back up a little',
+  'long.full': 'Reached the maximum length',
+  'long.stop': 'Stop',
+  'long.failed': 'Could not start: {message}',
 
   // recording control bar
   'recbar.pauseResume': 'Pause / resume',
@@ -171,6 +181,7 @@ const zh = {
   'tray.quit': '退出',
 
   'overlay.modeCapture': '截图',
+  'overlay.modeLong': '长截图',
   'overlay.modeRecord': '录屏',
   'overlay.drag': '拖动',
 
@@ -214,6 +225,14 @@ const zh = {
   'rec.mouseHighlight': '鼠标高亮',
   'rec.clickEffect': '增加点击效果',
   'rec.deviceFallback': '{kind} {index}',
+
+  'long.start': '开始',
+  'long.starting': '准备中…',
+  'long.scroll': '在框里滚动',
+  'long.lost': '跟丢了，往回滚一点',
+  'long.full': '已经到最大长度了',
+  'long.stop': '停止',
+  'long.failed': '没能开始：{message}',
 
   'recbar.pauseResume': '暂停 / 继续',
   'recbar.stop': '结束录制',

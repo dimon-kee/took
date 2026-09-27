@@ -47,7 +47,7 @@ At boot the app goes straight to the tray without opening a window.
 
 Those are the defaults; both can be changed from the tray menu's settings window — see [Settings](#settings).
 
-The app shows no window at all until a hotkey fires. Then the whole screen freezes and a `⋮⋮ Capture │ Record` mode bar floats in at the top; everything disappears once you finish. The bar can be dragged, and it steps out of the way as soon as you pick an annotation tool.
+The app shows no window at all until a hotkey fires. Then the whole screen freezes and a `⋮⋮ Capture │ Scrolling │ Record` mode bar floats in at the top; everything disappears once you finish. The bar can be dragged, and it steps out of the way as soon as you pick an annotation tool.
 
 ## Screenshots
 
@@ -96,6 +96,27 @@ QR decoding reads the untouched pixels, so annotations drawn on top do not inter
 ### Pinning
 
 The pin in the toolbar turns the region into an always-on-top window that stays where it was. Drag to move, scroll to change opacity, hover for copy / save / close in the corner, double-click or `Esc` to dismiss.
+
+## Scrolling screenshots
+
+For anything taller than the screen: a long page, a chat history, a document.
+
+1. Switch the mode bar to **Scrolling** and select the part that scrolls
+2. Press the **Start** button that appears in the region
+3. Scroll the content inside the frame with the mouse wheel — down, up, or both
+4. Press **Stop**, then ✓ to copy, the arrow to save, or ✕ to throw it away
+
+The image grows at whichever end you scroll past, so you can start anywhere: at the bottom of a chat and scroll up through the history, or mid-page and go both ways. Scrolling back over what is already captured does not add it twice.
+
+While it runs, the region shows the live screen and the wheel — and clicks — go through to the app underneath; outside the region they do nothing. A panel beside the region shows the image growing and its size. Fixed bars such as a sticky header or a chat input box are recognised and kept once, not repeated down the image.
+
+Scroll faster than it can follow and the panel says so: scroll back a little and carry on. The image stops growing at 20,000 pixels.
+
+| Key | Action |
+| --- | --- |
+| `Enter` | Stop; once stopped, copy to clipboard |
+| `Ctrl + S` | Save as PNG, once stopped |
+| `Esc` | Cancel |
 
 ## Screen recording
 
@@ -166,6 +187,7 @@ src/
 │   ├── screens.js         cached desktopCapturer source IDs
 │   ├── settings.js        persisted preferences
 │   ├── cursor.js          global pointer position + click edges (koffi → user32)
+│   ├── longcapture.js     scrolling screenshot: hide from capture, let the wheel through
 │   ├── clipboard.js       clipboard writes on Electron 44's async API
 │   ├── autolaunch.js      start-with-Windows registration
 │   ├── win32.js           Win32 bits Electron does not expose
@@ -177,6 +199,8 @@ src/
     │   ├── shapes.js        annotation primitives and hit testing
     │   ├── magnifier.js     pixel loupe
     │   ├── recordpanel.js   recording setup card
+    │   ├── longshot.js      scrolling screenshot: card, panel, capture loop
+    │   ├── stitch.js        works out where each scrolled frame goes
     │   └── icons.js         toolbar icons
     ├── recorder/          hidden worker window that owns the capture
     ├── recordbar/         recording control bar
@@ -202,6 +226,10 @@ Hotkey to visible is about 600ms, down from 1900ms. `task check:latency` measure
 
 **Click detection cannot come from Electron**, which exposes the pointer position but not button state. koffi polls `user32!GetAsyncKeyState` at 60Hz, main does the edge detection and pushes it to the recorder. If the FFI binding fails to load it degrades to highlight only, with no click effect.
 
+**Scrolling screenshots are stitched from a live stream.** The region is cropped out of a desktop MediaStream frame by frame. Each frame's rows are hashed and vote on how far the content moved since the last frame, up or down; rows that come into view past either end of the image are added there. Fixed bars show up as rows that stay put. A new position has to agree with the rows voting for it and with everything the image already holds there, and if more than one position would fit — a page that repeats a picture can line up on the repeat — the frame is skipped rather than guessed at. The pointer is part of every captured frame, so the rows it covers are marked and redone from a later frame once it has moved on. `task check:stitch` runs the matcher against synthetic pages with known answers — hundreds of random ones scrolled both ways, plus fixed bars, scrollbars, a resting pointer and a flick too fast to follow — and `task check:longshot` runs the whole thing end to end.
+
+**The overlay is a tool window, and leaves the capture while it scrolls.** Chromium — every browser, every Electron app — stops painting a window it believes is fully covered, and a topmost screen-sized window counts unless it is a tool window; without that, the page being scrolled freezes. During a scrolling screenshot the overlay is also excluded from screen capture (`setContentProtection`), so its dimming and panel never reach the frames, and it lets the mouse through only inside the region.
+
 ## Development tools
 
 Everything under `tools/` has a matching task:
@@ -214,6 +242,8 @@ Everything under `tools/` has a matching task:
 | `check-scripts.js` | `task check:scripts` | Several classic scripts share each page's global scope; a top-level redeclaration between them stops the later one loading, and `node --check` cannot see it |
 | `check-settings.js` | `task check:settings` | Exercises the settings store, the save-path fallback and the hotkey conflict rollback |
 | `check-clicks.js` | `task check:clicks` | Clicks the screenshot ✓, the recording card's dropdowns and the settings checkbox with real mouse input. The previews use `element.click()`, which has no press before it, so anything that reacts to mousedown goes untested there |
+| `check-stitch.js` | `task check:stitch` | Feeds the scrolling-screenshot stitcher synthetic pages with known answers, scrolled unevenly, and checks every offset and the result pixel for pixel. Plain Node, so CI runs it too |
+| `check-longshot.js` | `task check:longshot` | A scrolling screenshot end to end through the real overlay and a live stream: a page numbering its own pixel rows is scrolled under the selection, and the result must read those numbers back unbroken. Puts an overlay on screen for a few seconds |
 | `check-clipboard.js` | `task check:clipboard` | Copies an image, a file and text for real and reads them back from a separate process, the way a pasting app sees them; also fails on any call to the synchronous clipboard helpers Electron 44 removed. Puts your clipboard back afterwards |
 | `check-latency.js` | `task check:latency` | Times the hotkey-to-overlay path and confirms the grabbed frame is not blank |
 | `check-capture-speed.js` | `task check:capture-speed` | Breaks down where desktopCapturer spends its time versus a MediaStream frame grab — the evidence for not using it on the hot path |

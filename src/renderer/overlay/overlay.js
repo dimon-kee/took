@@ -9,6 +9,7 @@
   const Shapes = window.TookShapes;
   const Mag = window.TookMagnifier;
   const RecordPanel = window.TookRecordPanel;
+  const LongShot = window.TookLongShot;
 
   const DIM = 'rgba(0,0,0,0.45)';
   const SEL_STROKE = '#6c8cff';
@@ -124,6 +125,7 @@
 
   let magnifier = null;
   let recPanel = null;
+  let longShot = null;
   let toastTimer = null;
   let dirty = { mask: true, shapes: true, live: true };
   let rafId = 0;
@@ -162,6 +164,14 @@
         syncWebcam();
       },
     });
+    longShot = LongShot.create(els.ui, {
+      onStart: () => startLong(),
+      begin: (rects) => window.took.longStart(rects),
+      end: () => window.took.longStop(),
+      copy: (dataURL) => copyImage(dataURL),
+      save: (dataURL) => window.took.save(dataURL),
+      cancel: () => window.took.cancel(),
+    });
     wireBars();
     buildToolbar();
     buildSubbar();
@@ -189,6 +199,11 @@
     // Only then may main reveal the window — otherwise you see a black flash
     // while the screenshot is still decoding.
     requestAnimationFrame(() => requestAnimationFrame(() => window.took.ready()));
+  });
+
+  // Where the pointer is during a scrolling screenshot, streamed from main.
+  window.took.onPointer((p) => {
+    if (longShot) LongShot.pointer(longShot, p);
   });
 
   // Another display took over the interaction — drop whatever we had going so
@@ -580,7 +595,7 @@
 
   /** Visible while picking a region; a chosen tool means we are past that. */
   function syncModeBar() {
-    els.modebar.classList.toggle('hidden', !S.active || Boolean(S.tool));
+    els.modebar.classList.toggle('hidden', !S.active || Boolean(S.tool) || S.phase === 'long');
     els.modebar.querySelectorAll('.mode').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.mode === S.mode);
     });
@@ -710,16 +725,20 @@
   }
 
   function syncToolbar() {
-    // 录屏 has no annotation step — the setup card takes the toolbar's place.
-    if (S.mode === 'record') {
+    // 录屏 and 长截图 have no annotation step — their card takes the toolbar's
+    // place.
+    if (S.mode === 'record' || S.mode === 'long') {
       els.toolbar.classList.add('hidden');
       els.subbar.classList.add('hidden');
-      RecordPanel.show(recPanel, S.phase === 'ready' && S.active, S.sel, S.viewW, S.viewH);
+      const show = S.phase === 'ready' && S.active;
+      RecordPanel.show(recPanel, S.mode === 'record' && show, S.sel, S.viewW, S.viewH);
+      LongShot.showCard(longShot, S.mode === 'long' && show, S.sel, S.viewW, S.viewH);
       syncModeBar();
       return;
     }
 
     RecordPanel.show(recPanel, false);
+    LongShot.showCard(longShot, false);
     els.toolbar.querySelectorAll('.tool').forEach((el) => {
       el.classList.toggle('active', el.dataset.id === S.tool);
       if (el.dataset.id === 'undo') el.classList.toggle('disabled', S.shapes.length === 0);
@@ -765,6 +784,10 @@
 
     if (S.mode === 'record') {
       if (S.phase === 'ready') RecordPanel.place(recPanel, S.sel, S.viewW, S.viewH);
+      return;
+    }
+    if (S.mode === 'long') {
+      if (S.phase === 'ready') LongShot.placeCard(longShot, S.sel, S.viewW, S.viewH);
       return;
     }
 
@@ -837,7 +860,9 @@
   // -------------------------------------------------------------------------
 
   document.addEventListener('mousedown', (e) => {
-    if (e.button !== 0 || !S.ready) return;
+    // During a scrolling screenshot the selection is fixed; only its panel
+    // takes clicks, and that stops them before they get here.
+    if (e.button !== 0 || !S.ready || S.phase === 'long') return;
     if (!S.active) {
       // A click on a non-owning display restarts the selection there.
       S.active = true;
@@ -897,7 +922,7 @@
   });
 
   document.addEventListener('mousemove', (e) => {
-    if (!S.ready) return;
+    if (!S.ready || S.phase === 'long') return;
     const p = point(e);
     S.cursor = p;
 
@@ -1006,6 +1031,7 @@
 
   document.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    if (S.phase === 'long') return;
     if (S.textEdit) {
       cancelText();
       return;
@@ -1073,6 +1099,7 @@
     els.subbar.classList.add('hidden');
     els.badge.classList.add('hidden');
     if (recPanel) RecordPanel.show(recPanel, false);
+    if (longShot) LongShot.showCard(longShot, false);
   }
 
   function point(e) {
@@ -1126,6 +1153,10 @@
   }
 
   function setCursorStyle(p) {
+    if (S.phase === 'long') {
+      document.body.style.cursor = 'default';
+      return;
+    }
     if (S.phase === 'idle') {
       document.body.style.cursor = 'crosshair';
       return;
@@ -1328,15 +1359,65 @@
       return;
     }
 
-    window.took.copy(composite().toDataURL('image/png')).then((ok) => {
+    if (S.mode === 'long') {
+      startLong();
+      return;
+    }
+
+    copyImage(composite().toDataURL('image/png'));
+  }
+
+  function copyImage(dataURL) {
+    window.took.copy(dataURL).then((ok) => {
       // Main leaves the overlay up when the write fails; say so, rather than
       // sit there looking like the click never landed.
       if (!ok) toast(T('toast.copyFailed'), 2600);
     });
   }
 
+  /** The card's Start: the selection goes live and the capture begins. */
+  function startLong() {
+    if (!S.sel || S.phase !== 'ready' || S.mode !== 'long') return;
+    S.phase = 'long';
+    S.tool = null;
+    S.shapes = [];
+    hideChrome();
+    syncModeBar();
+    Mag.show(magnifier, false);
+    // From here on the selection shows the live screen, so the frozen one goes.
+    els.base.classList.add('hidden');
+    setCursorStyle();
+    markDirty('mask', 'shapes', 'live');
+
+    LongShot.start(longShot, {
+      shot: S.shot,
+      sel: { ...S.sel },
+      viewW: S.viewW,
+      viewH: S.viewH,
+      workArea: S.workArea,
+    });
+  }
+
+  /** Keys while a scrolling screenshot runs, or once it has stopped. */
+  function onLongKey(e, mod) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      LongShot.act(longShot, 'cancel');
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (LongShot.state(longShot) === 'running') LongShot.stop(longShot);
+      else LongShot.act(longShot, 'confirm');
+    } else if (mod && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      LongShot.act(longShot, 'save');
+    } else if (mod && (e.key === 'c' || e.key === 'C')) {
+      e.preventDefault();
+      LongShot.act(longShot, 'confirm');
+    }
+  }
+
   function doSave() {
-    if (!S.sel || S.mode === 'record') return;
+    if (!S.sel || S.mode !== 'capture') return;
     commitText();
     window.took.save(composite().toDataURL('image/png'));
   }
@@ -1421,6 +1502,11 @@
     if (!S.ready) return;
     const mod = e.ctrlKey || e.metaKey;
 
+    if (S.phase === 'long') {
+      onLongKey(e, mod);
+      return;
+    }
+
     if (e.key === 'Escape') {
       e.preventDefault();
       if (S.textEdit) return cancelText();
@@ -1497,12 +1583,15 @@
     return Math.max(lo, Math.min(hi, v));
   }
 
-  // Introspection hook for tools/preview-ui.js.
+  // Introspection hook for tools/preview-ui.js and the checks.
   window.__tookDebug = () => ({
+    ready: S.ready,
     mode: S.mode,
     phase: S.phase,
     tool: S.tool,
     shapes: S.shapes.length,
     sel: S.sel,
+    long: longShot ? LongShot.state(longShot) : null,
+    longStats: longShot ? LongShot.stats(longShot) : null,
   });
 })();

@@ -590,6 +590,122 @@ html:not([lang^='zh']) .rec-start {
 }
 
 /* --------------------------------------------------------------------------
+   scrolling screenshot: the Start button, then the panel beside the selection
+   -------------------------------------------------------------------------- */
+
+.long-card,
+.long-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+  cursor: default;
+  will-change: transform;
+}
+
+/* Just the button, floating over the selection on its own. */
+.long-card .long-go {
+  width: 132px;
+  height: 42px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+}
+
+.long-panel {
+  width: 180px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(30, 30, 32, 0.97);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+}
+
+.long-view {
+  height: 280px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.long-view::-webkit-scrollbar {
+  width: 6px;
+}
+
+.long-view::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.long-clip {
+  overflow: hidden;
+}
+
+.long-preview {
+  display: block;
+  margin: 0 auto;
+}
+
+.long-size {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Two lines tall from the start, so a hint appearing does not resize the
+   panel — main hit-tests the rect it was given. */
+.long-status {
+  height: 36px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.long-status.warn {
+  color: #ffb020;
+}
+
+.long-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.long-stop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  height: 34px;
+  border: 0;
+  border-radius: 7px;
+  background: #f5222d;
+  color: #fff;
+  font-size: 14px;
+  font-family: inherit;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.long-stop:hover {
+  background: #ff4d4f;
+}
+
+.long-stop i {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: #fff;
+}
+
+/* --------------------------------------------------------------------------
    text input
    -------------------------------------------------------------------------- */
 

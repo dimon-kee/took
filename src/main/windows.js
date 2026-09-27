@@ -55,6 +55,11 @@ function createOverlayWindow(shot) {
     hasShadow: false,
     enableLargerThanScreen: true,
     show: false,
+    // A tool window (WS_EX_TOOLWINDOW). Chromium — every browser and Electron
+    // app — stops painting a window it believes is fully covered, and a
+    // screen-sized topmost window counts unless it is a tool window. During a
+    // scrolling screenshot that would freeze the very app being scrolled.
+    type: 'toolbar',
     webPreferences: {
       preload: path.join(PRELOAD, 'overlay.js'),
       contextIsolation: true,

@@ -162,6 +162,10 @@ app.whenReady().then(async () => {
     click('marker');
   `);
 
+  await shoot(win, 'k-long-card', `
+    mode('long');
+  `);
+
   console.log(`\n预览图写在: ${OUT}`);
   app.exit(0);
 });

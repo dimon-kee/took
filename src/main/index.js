@@ -21,6 +21,7 @@ const { pathToFileURL } = require('url');
 const { describeDisplays, captureDisplayImage } = require('./capture');
 const screens = require('./screens');
 const cursorTracker = require('./cursor');
+const longCapture = require('./longcapture');
 const autoLaunch = require('./autolaunch');
 const settings = require('./settings');
 const { pngFromDataURL, copyImage, copyFile, copyText } = require('./clipboard');
@@ -239,6 +240,7 @@ async function openOverlays(mode) {
 }
 
 function closeOverlays() {
+  longCapture.stop();
   const wins = overlayWins.slice();
   overlayWins = [];
   wins.forEach((w) => {
@@ -333,6 +335,23 @@ ipcMain.handle('overlay:copy-text', async (event, text) => {
   await copyText(text);
   return true;
 });
+
+// --- scrolling screenshot ----------------------------------------------------
+
+ipcMain.handle('overlay:long-start', (event, rects) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return false;
+
+  // Only one display scrolls; the others would sit there frozen, eating clicks.
+  overlayWins.filter((w) => w !== win && !w.isDestroyed()).forEach((w) => w.destroy());
+
+  longCapture.start(win, rects);
+  return true;
+});
+
+ipcMain.on('overlay:long-panel', (event, rect) => longCapture.setPanel(rect));
+
+ipcMain.on('overlay:long-stop', () => longCapture.stop());
 
 // ---------------------------------------------------------------------------
 // IPC — pin windows
