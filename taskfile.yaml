@@ -167,6 +167,12 @@ tasks:
     cmds:
       - cmd: npx electron tools/check-media.js
 
+  check:mp4:
+    desc: Record clips the way Took does and check the regular MP4s they become — frame for frame, and seeking in Chromium and Windows' player
+    cmds:
+      # 录的是合成的画面，不是你的屏幕。装了 ffprobe 才会逐帧比对，没装就跳过那一项。
+      - cmd: npx electron tools/check-mp4.js
+
   check:record:
     desc: Record a few seconds as MP4 and GIF, then verify container structure and frame count
     cmds:
@@ -189,6 +195,7 @@ tasks:
       - task: check:capture
       - task: check:latency
       - task: check:media
+      - task: check:mp4
       - task: check:record
     aliases: [c]
 

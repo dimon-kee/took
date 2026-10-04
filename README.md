@@ -161,7 +161,7 @@ Copying puts the clip on the clipboard as a file reference, MP4 and GIF alike, s
 
 | | Codec | Notes |
 | --- | --- | --- |
-| MP4 | H.264 + AAC | Native to MediaRecorder, no ffmpeg needed |
+| MP4 | H.264 + AAC | Native to MediaRecorder, no ffmpeg needed. Saved as a regular MP4 — length and index up front — so any player can skip through it |
 | GIF | gifenc | 10fps, 640px wide at most, one 256-colour palette for the whole clip |
 
 Screenshots are always PNG at **native resolution**. On a 1920×1080 screen at 125% scaling you get a real 1920×1080 image, not an upscaled 1536×864 one.
@@ -202,6 +202,7 @@ src/
 │   ├── longcapture.js     scrolling screenshot: hide from capture, let the wheel through
 │   ├── updater.js         checking for, downloading and installing updates
 │   ├── clips.js           the temp folder recordings wait in
+│   ├── mp4.js             lays MediaRecorder's fragmented MP4 out as a regular one
 │   ├── clipboard.js       clipboard writes on Electron 44's async API
 │   ├── autolaunch.js      start-with-Windows registration
 │   ├── win32.js           Win32 bits Electron does not expose
@@ -240,6 +241,8 @@ Hotkey to visible is about 600ms, down from 1900ms. `task check:latency` measure
 
 **Click detection cannot come from Electron**, which exposes the pointer position but not button state. koffi polls `user32!GetAsyncKeyState` at 60Hz, main does the edge detection and pushes it to the recorder. If the FFI binding fails to load it degrades to highlight only, with no click effect.
 
+**Recordings are saved as regular MP4s.** MediaRecorder writes MP4 in fragments, one a second, with no overall length and no index. Chromium reads every fragment and plays it fine; Windows' players take the length as unknown and treat it like a live stream — it plays, but cannot be skipped through, and Explorer shows no length. Before a recording is saved, `src/main/mp4.js` lays it out again: an index up front with every frame's duration, size and position, the keyframes and the real length, then the same media data byte for byte. Nothing is re-encoded and no ffmpeg ships; a file that is not what it expects is saved as recorded. `task check:mp4` records clips the way Took does, compares them frame for frame with ffprobe, and seeks in them in Chromium and in Windows' own player.
+
 **Scrolling screenshots are stitched from a live stream.** The region is cropped out of a desktop MediaStream frame by frame. Each frame's rows are hashed and vote on how far the content moved since the last frame, up or down; rows that come into view past either end of the image are added there. Fixed bars show up as rows that stay put. A new position has to agree with the rows voting for it and with everything the image already holds there, and if more than one position would fit — a page that repeats a picture can line up on the repeat — the frame is skipped rather than guessed at. The pointer is part of every captured frame, so the rows it covers are marked and redone from a later frame once it has moved on. `task check:stitch` runs the matcher against synthetic pages with known answers — hundreds of random ones scrolled both ways, plus fixed bars, scrollbars, a resting pointer and a flick too fast to follow — and `task check:longshot` runs the whole thing end to end.
 
 **Updates come from GitHub Releases** through electron-updater. electron-builder writes `resources/app-update.yml` into the installed app from the `publish` block in `package.json`, and CI attaches `latest.yml` (version, file name, SHA-512) and the installer's blockmap to every release — so a download is verified before it runs, and later updates fetch only the blocks that changed. `task check:update` runs the updater against a local stand-in for GitHub; after publishing, `task check:update -- --live` downloads the newest real release and checks it against its `latest.yml`.
@@ -271,7 +274,8 @@ Everything under `tools/` has a matching task:
 | `check-flash.js` | `task check:flash` | Films the overlay appearing and measures per-frame luminance, turning "it flashes" into a number |
 | `check-capture.js` | `task check:capture` | Reports each display's size, scale factor and the resolution actually captured |
 | `check-media.js` | `task check:media` | Probes MediaRecorder codecs, desktop loopback audio and available devices |
-| `check-record.js` | `task check:record` | Records a few seconds end to end and verifies MP4 / GIF container structure and frame count. Deletes the clips afterwards |
+| `check-mp4.js` | `task check:mp4` | Records short clips the way Took does and checks the regular MP4s they are saved as: ffprobe sees the same frames — timing, size, keyframes and an MD5 of each — Chromium shows the same picture wherever it seeks, and Windows' own player knows the length and seeks. Also 64-bit offsets, a track that starts late, and input it must refuse |
+| `check-record.js` | `task check:record` | Records a few seconds end to end and verifies MP4 / GIF container structure and frame count; the MP4 has to come out regular, its index in front. Deletes the clips afterwards |
 | `make-icons.js` | `task icons` | Generates the icon PNGs in `assets/` from code, so the repository carries no binary art |
 | `autostart.js` | `task autostart[:on\|:off]` | Start-with-Windows toggle and status |
 

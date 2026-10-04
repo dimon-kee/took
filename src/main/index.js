@@ -25,6 +25,7 @@ const longCapture = require('./longcapture');
 const autoLaunch = require('./autolaunch');
 const updater = require('./updater');
 const clips = require('./clips');
+const mp4 = require('./mp4');
 const settings = require('./settings');
 const { pngFromDataURL, copyImage, copyFile, copyText } = require('./clipboard');
 const { createTranslator, LANGUAGES } = require('../shared/i18n');
@@ -570,7 +571,7 @@ ipcMain.handle('recorder:done', async (event, { buffer, mime, meta }) => {
   let file;
   try {
     file = clips.next(`took_${stamp()}.${ext}`);
-    fs.writeFileSync(file, Buffer.from(buffer));
+    saveRecording(file, Buffer.from(buffer), ext);
   } catch (err) {
     dialog.showErrorBox(t('err.saveRecordingTitle'), String(err.message || err));
     return false;
@@ -633,6 +634,23 @@ ipcMain.handle('editor:copy', async () => {
     return false;
   }
 });
+
+/**
+ * MediaRecorder's MP4 arrives in fragments with no overall length, which
+ * Windows' players cannot seek in, so it is laid out as a regular MP4 first.
+ * Should that fail, the recording is kept as it was recorded.
+ */
+function saveRecording(file, data, ext) {
+  if (ext === 'mp4') {
+    try {
+      mp4.writeRegular(file, data);
+      return;
+    } catch (err) {
+      console.warn('[took] 录屏整理成普通 MP4 失败，按原样保存:', err.message);
+    }
+  }
+  fs.writeFileSync(file, data);
+}
 
 function extensionFor(mime) {
   if (!mime) return 'webm';

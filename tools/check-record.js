@@ -12,6 +12,7 @@ const path = require('path');
 const { app, ipcMain, desktopCapturer, screen } = require('electron');
 const { createRecorderWindow } = require('../src/main/windows');
 const cursorTracker = require('../src/main/cursor');
+const { writeRegular } = require('../src/main/mp4');
 
 const SECONDS = Number(process.argv[2]) || 3;
 const OUT = path.join(app.getPath('temp'), 'took-record-check');
@@ -131,10 +132,13 @@ async function run(testCase) {
   const buffer = Buffer.from(payload.buffer);
   const ext = payload.mime.includes('gif') ? 'gif' : payload.mime.includes('mp4') ? 'mp4' : 'webm';
   const file = path.join(OUT, `check-${testCase.settings.format}.${ext}`);
-  fs.writeFileSync(file, buffer);
+  // Saved the way the app saves it: an MP4 is laid out with its index in front.
+  if (ext === 'mp4') writeRegular(file, buffer);
+  else fs.writeFileSync(file, buffer);
+  const regular = ext !== 'mp4' || inspectMp4(fs.readFileSync(file)).boxes === 'ftyp moov mdat';
 
   return {
-    ok: buffer.length > 1024 && looksValid(buffer, ext),
+    ok: buffer.length > 1024 && looksValid(buffer, ext) && regular,
     file,
     bytes: buffer.length,
     mime: payload.mime,
@@ -227,6 +231,7 @@ function report(testCase, r) {
     const m = inspectMp4(buf);
     console.log(`  MP4 结构  ${m.boxes}  mdat=${m.mdatKB.toFixed(1)} KB`);
     if (m.mdatKB < 4) console.log('  !! mdat 过小,可能没有画面');
+    if (m.boxes !== 'ftyp moov mdat') console.log('  !! 还是分片的 MP4,Windows 的播放器拖不了进度');
   }
 
   console.log(`  文件      ${r.file}`);

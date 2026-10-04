@@ -161,7 +161,7 @@ task autostart:on
 
 | | 编码 | 说明 |
 | --- | --- | --- |
-| MP4 | H.264 + AAC | MediaRecorder 原生支持,不需要外挂 ffmpeg |
+| MP4 | H.264 + AAC | MediaRecorder 原生支持,不需要外挂 ffmpeg。存成普通 MP4(长度和索引在最前面),哪个播放器都能拖进度 |
 | GIF | gifenc | 10fps,最宽 640px,整段共用一份 256 色调色板 |
 
 截图统一输出 PNG,**原生分辨率**。125% 缩放的 1920×1080 屏上,截出来是实打实的 1920×1080,不是 1536×864 放大的。
@@ -202,6 +202,7 @@ src/
 │   ├── longcapture.js     长截图:不进截屏画面、放滚轮过去
 │   ├── updater.js         检查、下载、安装更新
 │   ├── clips.js           录屏暂存的临时目录
+│   ├── mp4.js             把 MediaRecorder 分片的 MP4 重新排成普通 MP4
 │   ├── clipboard.js       剪贴板写入(Electron 44 的异步接口)
 │   ├── autolaunch.js      开机自启的注册
 │   ├── win32.js           Electron 没暴露的那几个 Win32 能力
@@ -240,6 +241,8 @@ src/
 
 **点击检测没法靠 Electron**:它只给光标位置,不给按键。所以用 koffi 调 `user32!GetAsyncKeyState` 按 60Hz 轮询左键,在主进程做边沿检测后推给录制窗口。FFI 加载失败时会降级成只有高亮、没有点击效果。
 
+**录屏存成普通 MP4。** MediaRecorder 写出来的 MP4 是分片的:每秒一段,文件头里既没有总长度也没有索引。Chromium 会把每一段都读一遍,所以照样能播;Windows 的播放器把长度当成未知、按直播流处理 —— 能播,但拖不了进度,资源管理器里也不显示时长。保存之前,`src/main/mp4.js` 把它重新排一遍:最前面是索引,写着每一帧的时长、大小、位置,哪些是关键帧,还有真正的总长度,后面跟着一个字节都没动过的媒体数据。不重新编码,也不用带 ffmpeg;文件不是预期的样子,就按录出来的原样保存。`task check:mp4` 按 Took 的方式录几段,用 ffprobe 逐帧比对,再分别在 Chromium 和 Windows 自己的播放器里拖进度。
+
 **长截图是从实时画面里拼出来的**。逐帧从桌面 MediaStream 里裁出选区,每一行算一个哈希,用这些行来"投票"内容相对上一帧往上或往下滚了多少,滚过图任意一头新露出来的行就接到那一头。固定不动的栏就是那些位置不变的行。新的位置不光要和投票的那些行对得上,还要和图里那个位置已经有的内容全部对得上;如果不止一个位置都说得通(页面里重复出现同一张图,就可能对到重复的那份上),这一帧宁可跳过也不瞎猜。鼠标指针会被一起抓进每一帧,所以它盖住的行会被标记,等指针挪开后再用后面的帧补干净。`task check:stitch` 用答案已知的合成页面去测匹配(几百个上下来回滚的随机页面,外加固定栏、滚动条、停着的指针、快到跟不上的一甩),`task check:longshot` 把整条链路端到端跑一遍。
 
 **更新来自 GitHub Releases**,用 electron-updater。electron-builder 根据 `package.json` 里的 `publish` 往安装版里写 `resources/app-update.yml`,CI 在每次发布时附上 `latest.yml`(版本、文件名、SHA-512)和安装包的 blockmap —— 所以下载下来会先校验才运行,之后的更新也只下载变了的块。`task check:update` 用一个本地的假 GitHub 把更新流程跑一遍;发布之后,`task check:update -- --live` 会下载真正的最新发布,拿它的 `latest.yml` 核对。
@@ -271,7 +274,8 @@ src/
 | `check-flash.js` | `task check:flash` | 录下覆盖层出现的过程逐帧测亮度,把「闪一下」变成可复测的数字 |
 | `check-capture.js` | `task check:capture` | 报告每块屏幕的尺寸、缩放和实际抓取分辨率 |
 | `check-media.js` | `task check:media` | 探测 MediaRecorder 支持哪些容器/编码、系统声音能不能抓、有几个摄像头麦克风 |
-| `check-record.js` | `task check:record` | 端到端实录几秒,校验 MP4 / GIF 的容器结构和帧数,确认不是黑帧。跑完自动删掉录出来的临时文件 |
+| `check-mp4.js` | `task check:mp4` | 按 Took 的方式录几段短片,检查存下来的普通 MP4:ffprobe 看到的帧和原来一模一样(时间、大小、关键帧、每一帧的 MD5),Chromium 跳到哪里看到的画面都和原来一样,Windows 自己的播放器知道长度、能拖进度。另外测 64 位偏移、晚开始的轨道,以及该拒绝的输入 |
+| `check-record.js` | `task check:record` | 端到端实录几秒,校验 MP4 / GIF 的容器结构和帧数,确认不是黑帧;MP4 必须是索引在前的普通 MP4。跑完自动删掉录出来的临时文件 |
 | `make-icons.js` | `task icons` | 从代码生成 `assets/` 里的图标 PNG,仓库不存二进制素材 |
 | `autostart.js` | `task autostart[:on\|:off]` | 开机自启的开关和状态 |
 
