@@ -95,19 +95,27 @@ let lastClip = null;
 /** What clicking the tray's balloon does; set by whichever balloon went up last. */
 let balloonClick = null;
 
-// One Took at a time. Launching it again — from the Start menu, or the
-// installer's "Run Took" — only says it is already running.
+// Started by the Start with Windows entry, or by the installer after an
+// update: Took goes to the tray and stays there. Any other launch is someone
+// opening it — the Start menu, a shortcut, the installer's "Run Took" — and
+// gets the settings window.
+const QUIET = [autoLaunch.FLAG, '--updated'];
+const quiet = (argv) => argv.some((arg) => QUIET.includes(arg));
+
+// One Took at a time. Launching it again opens the running copy's settings.
 const primary = app.requestSingleInstanceLock();
 if (!primary) {
   app.quit();
 } else {
-  app.on('second-instance', () => sayRunning());
+  app.on('second-instance', (_e, argv) => {
+    if (!quiet(argv)) openSettings();
+  });
 }
 
 // Tray-resident app: closing every window must not quit it.
 app.on('window-all-closed', () => {});
 
-// Nothing is shown at startup: the app lives in the tray until a hotkey fires.
+// The app lives in the tray; captures come from the hotkeys.
 app.whenReady().then(() => {
   // A copy that lost the lock still gets here before it quits. Starting up
   // would give it a tray icon of its own, and its sweep would delete the
@@ -125,6 +133,7 @@ app.whenReady().then(() => {
     onChange: (state) => sendToSettings('update:state', state),
     onReady: (version) => offerRestart(version),
   });
+  if (!quiet(process.argv)) openSettings();
 });
 
 app.on('will-quit', () => {
@@ -149,7 +158,8 @@ function setupTray() {
   tray = new Tray(trayIcon());
   tray.setToolTip(t('app.tooltip'));
   refreshTrayMenu();
-  tray.on('click', () => startCapture());
+  // Captures have their hotkeys and the menu; a click opens the settings.
+  tray.on('click', () => openSettings());
   tray.on('balloon-click', () => balloonClick && balloonClick());
 }
 
@@ -163,18 +173,6 @@ function balloon(title, content, onClick = null) {
 function offerRestart(version) {
   if (settingsWin && !settingsWin.isDestroyed() && settingsWin.isFocused()) return;
   balloon(t('update.readyTitle', { version }), t('update.readyBody'), () => updater.install(true));
-}
-
-/**
- * Took was launched again while it runs: say so, rather than open a capture
- * nobody asked for. A dev run says it is one — the installed build shares its
- * lock, so launching that while `task dev` runs lands here too.
- */
-function sayRunning() {
-  balloon(
-    t('tray.runningTitle', { app: app.isPackaged ? 'Took' : 'Took (dev)' }),
-    t('tray.runningBody', { key: prettyKey(shortcutFor('capture')) })
-  );
 }
 
 /** Quit — running a downloaded update on the way out, if one is waiting. */
@@ -724,12 +722,17 @@ ipcMain.handle('settings:load', () => ({
   },
 }));
 
+/**
+ * The window saves every change as it is made. Each answer carries what is in
+ * effect afterwards, so a change that was refused shows its old value again.
+ */
 ipcMain.handle('settings:save', (event, next) => {
   const previous = settings.get();
+  const effective = () => ({ settings: settings.get(), autoLaunch: autoLaunch.enabled() });
 
   if (next.saveDir) {
     const check = settings.checkWritable(next.saveDir);
-    if (!check.ok) return { ok: false, message: t('settings.dirNotWritable', { message: check.message }) };
+    if (!check.ok) return { ok: false, message: t('settings.dirNotWritable', { message: check.message }), ...effective() };
   }
 
   settings.set(next);
@@ -740,7 +743,7 @@ ipcMain.handle('settings:save', (event, next) => {
     settings.set(previous);
     applyShortcuts();
     refreshTrayMenu();
-    return { ok: false, conflicts };
+    return { ok: false, conflicts, ...effective() };
   }
 
   // Only once everything else has been accepted, so a rejected save never
@@ -763,7 +766,7 @@ ipcMain.handle('settings:save', (event, next) => {
     }, 350);
   }
 
-  return { ok: true, languageChanged };
+  return { ok: true, languageChanged, ...effective() };
 });
 
 ipcMain.handle('update:check', () => updater.check());

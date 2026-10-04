@@ -14,21 +14,22 @@ const T = (key, vars) => window.i18n.t(key, vars);
     updateStatus: document.getElementById('update-status'),
     updateAction: document.getElementById('btn-update-action'),
     autoUpdate: document.getElementById('auto-update'),
-    error: document.getElementById('error'),
     status: document.getElementById('status'),
   };
 
   const LABELS = { capture: 'settings.capture', record: 'settings.record' };
 
-  let current = null; // the settings as loaded / edited
+  let current = null; // the settings as shown
   let defaults = null;
   let listening = null; // which hotkey button is capturing right now
   // Start-with-Windows lives in the registry, not settings.json, so something
-  // else (`task autostart:on|off`) can flip it while this window is open.
-  // Remember what we loaded so a save only touches it when the user actually
-  // changed it here.
-  let loadedAutoLaunch = false;
+  // else (`task autostart:on|off`) can flip it while this window is open. Keep
+  // what the registry last said, so a save only touches it when the user
+  // actually changed it here.
+  let registryAutoLaunch = false;
   let update = { status: 'idle' }; // the updater's state, as main last reported it
+  let saving = Promise.resolve(); // saves run one after another, in order
+  let statusTimer = null;
 
   init();
 
@@ -37,7 +38,7 @@ const T = (key, vars) => window.i18n.t(key, vars);
     defaults = data.defaults;
     current = data.settings;
     current.autoLaunch = Boolean(data.autoLaunch);
-    loadedAutoLaunch = current.autoLaunch;
+    registryAutoLaunch = current.autoLaunch;
     els.version.textContent = data.version;
     renderUpdate(data.update);
 
@@ -45,13 +46,13 @@ const T = (key, vars) => window.i18n.t(key, vars);
     // After wire(), not before: the language buttons do not exist until
     // buildLanguages() has run, so an earlier render could not mark one active.
     render();
+    idle();
   }
 
   function render() {
     document.querySelectorAll('.hotkey').forEach((btn) => {
       if (btn === listening) return;
       btn.textContent = pretty(current.shortcuts[btn.dataset.key]);
-      btn.classList.remove('conflict');
     });
     els.saveDir.value = current.saveDir || defaults.saveDirLabel;
 
@@ -64,7 +65,7 @@ const T = (key, vars) => window.i18n.t(key, vars);
   }
 
   /**
-   * Checking and installing happen straight away, not on Save — only the
+   * Checking and installing happen when their buttons are pressed — only the
    * automatic-updates switch is a setting.
    */
   function renderUpdate(state) {
@@ -106,26 +107,15 @@ const T = (key, vars) => window.i18n.t(key, vars);
       .join('');
 
     els.langRow.querySelectorAll('.lang').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        current.language = btn.dataset.lang;
-        clearError();
-        render();
-      });
+      btn.addEventListener('click', () => change(() => (current.language = btn.dataset.lang)));
     });
   }
 
   function wire() {
     buildLanguages();
 
-    els.autoLaunch.addEventListener('change', () => {
-      current.autoLaunch = els.autoLaunch.checked;
-      clearError();
-    });
-
-    els.autoUpdate.addEventListener('change', () => {
-      current.autoUpdate = els.autoUpdate.checked;
-      clearError();
-    });
+    els.autoLaunch.addEventListener('change', () => change(() => (current.autoLaunch = els.autoLaunch.checked)));
+    els.autoUpdate.addEventListener('change', () => change(() => (current.autoUpdate = els.autoUpdate.checked)));
 
     els.checkUpdate.addEventListener('click', async () => renderUpdate(await window.took.checkUpdate()));
     els.updateAction.addEventListener('click', async () => {
@@ -140,32 +130,18 @@ const T = (key, vars) => window.i18n.t(key, vars);
 
     document.querySelectorAll('[data-reset]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const key = btn.dataset.reset;
-        current.shortcuts[key] = defaults.shortcuts[key];
         stopListening();
-        clearError();
-        render();
+        change(() => (current.shortcuts[btn.dataset.reset] = defaults.shortcuts[btn.dataset.reset]));
       });
     });
 
     document.getElementById('btn-browse').addEventListener('click', async () => {
       const dir = await window.took.pickDir(current.saveDir);
-      if (!dir) return;
-      current.saveDir = dir;
-      clearError();
-      render();
+      if (dir) change(() => (current.saveDir = dir));
     });
 
     document.getElementById('btn-open').addEventListener('click', () => window.took.openDir());
-
-    document.getElementById('btn-reset-dir').addEventListener('click', () => {
-      current.saveDir = null;
-      clearError();
-      render();
-    });
-
-    document.getElementById('btn-cancel').addEventListener('click', () => window.took.close());
-    document.getElementById('btn-save').addEventListener('click', save);
+    document.getElementById('btn-reset-dir').addEventListener('click', () => change(() => (current.saveDir = null)));
 
     document.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('blur', stopListening);
@@ -204,8 +180,9 @@ const T = (key, vars) => window.i18n.t(key, vars);
     const accelerator = toAccelerator(e);
     if (!accelerator) return; // modifiers alone, keep waiting
 
-    current.shortcuts[listening.dataset.key] = accelerator;
+    const key = listening.dataset.key;
     stopListening();
+    change(() => (current.shortcuts[key] = accelerator));
   }
 
   /**
@@ -274,44 +251,66 @@ const T = (key, vars) => window.i18n.t(key, vars);
   }
 
   // -------------------------------------------------------------------------
+  // saving — every change, as it is made
+  // -------------------------------------------------------------------------
+
+  /** Apply a change from the window, show it, and save it if anything moved. */
+  function change(apply) {
+    const before = JSON.stringify(current);
+    apply();
+    clearError();
+    render();
+    if (JSON.stringify(current) !== before) {
+      saving = saving.then(save).catch((err) => showError(err.message || T('settings.saveFailed')));
+    }
+  }
 
   async function save() {
-    clearError();
-
     const payload = { ...current };
     delete payload.autoLaunch;
-    if (current.autoLaunch !== loadedAutoLaunch) payload.autoLaunch = current.autoLaunch;
+    if (current.autoLaunch !== registryAutoLaunch) payload.autoLaunch = current.autoLaunch;
 
     const result = await window.took.save(payload);
+    registryAutoLaunch = result.autoLaunch;
 
     if (result.ok) {
-      els.status.textContent = T('settings.saved');
-      // On a language change main rebuilds this window, so closing it here
-      // would race that and leave nothing on screen.
-      if (!result.languageChanged) setTimeout(() => window.took.close(), 500);
+      current.autoLaunch = result.autoLaunch;
+      render();
+      // On a language change main rebuilds this window in the new language.
+      setStatus(T('settings.saved'), 'saved');
+      statusTimer = setTimeout(idle, 1500);
       return;
     }
 
+    // Refused: show what is actually in effect again, and why.
     if (result.conflicts && result.conflicts.length) {
-      result.conflicts.forEach((key) => {
-        const btn = document.querySelector(`.hotkey[data-key="${key}"]`);
-        if (btn) btn.classList.add('conflict');
-      });
+      current.shortcuts = result.settings.shortcuts;
+      render();
       const names = result.conflicts.map((k) => T(LABELS[k] || k)).join(T('settings.listSeparator'));
       showError(T('settings.conflict', { names }));
       return;
     }
 
+    current.saveDir = result.settings.saveDir;
+    render();
     showError(result.message || T('settings.saveFailed'));
   }
 
+  function setStatus(text, kind) {
+    clearTimeout(statusTimer);
+    els.status.textContent = text;
+    els.status.className = kind;
+  }
+
+  function idle() {
+    setStatus(T('settings.autoSaves'), '');
+  }
+
   function showError(message) {
-    els.error.textContent = message;
-    els.error.classList.remove('hidden');
+    setStatus(message, 'warn');
   }
 
   function clearError() {
-    els.error.classList.add('hidden');
-    els.status.textContent = '';
+    if (els.status.classList.contains('warn')) idle();
   }
 })();

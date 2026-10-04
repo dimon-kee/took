@@ -1,16 +1,24 @@
 'use strict';
 
 /**
- * Launches Took a second time while it is already running — a Start-menu
- * click, or the installer's "Run Took" with a copy still in the tray. The
- * running copy must stay in the tray rather than open a capture, and the new
- * copy must quit without starting up: its start-up sweeps the temp folder,
- * which would delete the recording the running copy is holding.
+ * Starts Took every way it gets started, and checks what shows up:
  *
- * Both copies get a data folder, a temp folder and hotkeys of their own, so a
+ *   - by the Start with Windows entry (--autostart) or after an update
+ *     (--updated): the tray only, no window
+ *   - by hand — the Start menu, a shortcut, the installer's "Run Took":
+ *     the settings window
+ *   - by hand while it already runs: the running copy opens its settings
+ *     rather than a capture, and the new copy quits without starting up — its
+ *     start-up would sweep the temp folder, deleting the recording the running
+ *     copy is holding
+ *
+ * and that the settings window saves a change as soon as it is made, with no
+ * Save button: one is flipped through the debugging protocol, and settings.json
+ * has to follow.
+ *
+ * Every copy gets a data folder, a temp folder and hotkeys of its own, so a
  * real Took — its lock, settings, parked recording and hotkeys — is never
- * touched. The running copy's tray icon shows for a few seconds, and so does
- * its "already running" notice.
+ * touched. Their tray icons and settings windows show for a few seconds.
  *
  *   node tools/check-launch.js
  */
@@ -43,57 +51,125 @@ async function main() {
   const temp = path.join(dir, 'temp');
   fs.mkdirSync(data);
   fs.mkdirSync(temp);
+  const settingsFile = path.join(data, 'settings.json');
   fs.writeFileSync(
-    path.join(data, 'settings.json'),
+    settingsFile,
     JSON.stringify({
+      language: 'en',
       shortcuts: { capture: 'CommandOrControl+Alt+Shift+F11', record: 'CommandOrControl+Alt+Shift+F12' },
       autoUpdate: false,
     })
   );
 
-  const args = ['.', `--user-data-dir=${data}`];
+  const base = ['.', `--user-data-dir=${data}`];
   // app.getPath('temp') follows TMP and TEMP, so the sweep stays in here too.
   const env = { ...process.env, TEMP: temp, TMP: temp };
-
-  console.log('已经在运行时再启动一次');
-  const first = spawn(ELECTRON, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
-  let output = '';
-  first.stdout.on('data', (chunk) => (output += chunk));
-  first.stderr.on('data', (chunk) => (output += chunk));
+  const running = [];
+  const start = (...args) => {
+    const child = spawn(ELECTRON, [...base, ...args], { cwd: ROOT, env, stdio: 'ignore' });
+    running.push(child);
+    return child;
+  };
 
   try {
-    const seen = watch(first.pid, 30000, 'NotifyIcon');
+    console.log('开机自启');
+    const first = start('--autostart', '--remote-debugging-port=0');
+    let seen = watch(first.pid, 30000, 'NotifyIcon');
     const up = seen.some((w) => /NotifyIcon/.test(w.cls));
-    check('第一个启动了，只进托盘', up && !seen.some((w) => w.visible), up ? shown(seen) : '等不到托盘图标');
+    check('进了托盘', up, up ? '' : '等不到托盘图标');
     if (!up) return;
+    seen = watch(first.pid, 3000, '^1\t');
+    check('不弹任何窗口', !seen.some((w) => w.visible), shown(seen));
 
+    console.log('\n已经在运行时再手动启动一次');
     // A finished recording, parked where the editor plays it from.
     const parked = path.join(temp, 'Took', 'took_20260101_000000.mp4');
     fs.mkdirSync(path.dirname(parked), { recursive: true });
     fs.writeFileSync(parked, 'recording');
 
-    const started = Date.now();
-    const second = spawnSync(ELECTRON, args, { cwd: ROOT, env, encoding: 'utf8', timeout: 30000 });
-    check(
-      '第二个自己退出了',
-      second.status === 0,
-      second.error ? second.error.message : `${Date.now() - started} ms，退出码 ${second.status}`
-    );
-    check('第二个没有跑启动流程：第一个存着的录屏还在', fs.existsSync(parked));
+    const began = Date.now();
+    const second = spawnSync(ELECTRON, base, { cwd: ROOT, env, encoding: 'utf8', timeout: 30000 });
+    check('新启动的那个自己退出了', second.status === 0, second.error ? second.error.message : `${Date.now() - began} ms，退出码 ${second.status}`);
+    check('它没有跑启动流程：存着的录屏还在', fs.existsSync(parked));
 
-    // An overlay would be on screen within 1.5 s of being asked for, even if
-    // its page never reported back.
-    const after = watch(first.pid, 4000, '^1\t');
-    check('第一个没有打开截图', !after.some((w) => w.visible), shown(after));
-    check('第一个还在运行', first.exitCode === null);
+    seen = watch(first.pid, 6000, '^1\t.*\tSettings$');
+    check('在跑的那个打开了设置', seen.some((w) => w.visible && w.title === 'Settings'), shown(seen) || '没有窗口');
+    check('没有打开截图', !seen.some((w) => w.visible && /Screenshot/.test(w.title)));
+
+    console.log('\n设置改了就保存');
+    const port = Number(fs.readFileSync(path.join(data, 'DevToolsActivePort'), 'utf8').split('\n')[0]);
+    const page = (expression) => evaluate(port, 'settings/index.html', expression);
+    check('没有保存按钮', (await page(`!document.getElementById('btn-save')`)) === true);
+    await page(`document.getElementById('auto-update').click()`);
+    const saved = await until(() => JSON.parse(fs.readFileSync(settingsFile, 'utf8')).autoUpdate === true, 5000);
+    check('勾一下「自动更新」，settings.json 马上跟着变', saved);
+    // Main writes the file a moment before the window hears back.
+    let status = '';
+    for (let i = 0; i < 20 && status !== 'Saved'; i++) {
+      status = await page(`document.getElementById('status').textContent`);
+      if (status !== 'Saved') await new Promise((r) => setTimeout(r, 100));
+    }
+    check('底部显示「已保存」', status === 'Saved', status);
+    stop(first);
+
+    console.log('\n没在运行时手动启动');
+    const third = start();
+    seen = watch(third.pid, 30000, '^1\t.*\tSettings$');
+    check('打开设置', seen.some((w) => w.visible && w.title === 'Settings'), shown(seen) || '没有窗口');
+    stop(third);
+
+    console.log('\n更新装好后重新启动（--updated）');
+    const fourth = start('--updated');
+    seen = watch(fourth.pid, 30000, 'NotifyIcon');
+    seen = seen.concat(watch(fourth.pid, 3000, '^1\t'));
+    check('只进托盘，不弹窗口', seen.some((w) => /NotifyIcon/.test(w.cls)) && !seen.some((w) => w.visible), shown(seen));
   } finally {
-    spawnSync('taskkill', ['/PID', String(first.pid), '/T', '/F'], { stdio: 'ignore' });
-    await new Promise((r) => (first.exitCode === null ? first.once('exit', r) : r()));
+    running.forEach(stop);
+    await Promise.all(running.map((c) => new Promise((r) => (c.exitCode === null ? c.once('exit', r) : r()))));
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   }
+}
 
-  const errors = output.split(/\r?\n/).filter((l) => /Uncaught|(Type|Reference|Range|Syntax)Error/.test(l));
-  check('第一个没有报错', !errors.length, errors.slice(0, 3).join(' | '));
+function stop(child) {
+  if (child.exitCode === null) spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+}
+
+async function until(test, ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    try {
+      if (test()) return true;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
+}
+
+/** Run `expression` in the page whose URL contains `urlPart`, over the debugging protocol. */
+async function evaluate(port, urlPart, expression) {
+  let target = null;
+  for (let i = 0; i < 50 && !target; i++) {
+    const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+    target = targets.find((t) => t.type === 'page' && t.url.includes(urlPart));
+    if (!target) await new Promise((r) => setTimeout(r, 100));
+  }
+  if (!target) throw new Error(`没有 ${urlPart} 这个页面`);
+
+  const ws = new WebSocket(target.webSocketDebuggerUrl);
+  await new Promise((ok, fail) => {
+    ws.onopen = ok;
+    ws.onerror = () => fail(new Error('连不上调试端口'));
+  });
+  const reply = await new Promise((ok) => {
+    ws.onmessage = (m) => {
+      const msg = JSON.parse(m.data);
+      if (msg.id === 1) ok(msg);
+    };
+    ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
+  });
+  ws.close();
+  if (reply.result.exceptionDetails) throw new Error(reply.result.exceptionDetails.text);
+  return reply.result.result.value;
 }
 
 function shown(windows) {

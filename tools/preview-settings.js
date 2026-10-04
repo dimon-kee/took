@@ -33,7 +33,14 @@ ipcMain.handle('settings:load', () => ({
     languages: require('../src/shared/i18n').LANGUAGES,
   },
 }));
-ipcMain.handle('settings:save', () => ({ ok: false, conflicts: ['record'] }));
+// Accepts everything except a Ctrl+Alt+J hotkey, which it refuses the way main
+// does when another program owns the combination.
+ipcMain.handle('settings:save', (event, next) => {
+  const conflicts = Object.keys(next.shortcuts).filter((k) => next.shortcuts[k] === 'CommandOrControl+Alt+J');
+  return conflicts.length
+    ? { ok: false, conflicts, settings: settings.get(), autoLaunch: true }
+    : { ok: true, languageChanged: false, settings: next, autoLaunch: true };
+});
 ipcMain.handle('settings:pick-dir', () => null);
 ipcMain.handle('update:check', () => ({ status: 'checking' }));
 ipcMain.handle('update:download', () => ({ status: 'downloading', version: '0.2.0', percent: 0 }));
@@ -66,14 +73,15 @@ app.whenReady().then(async () => {
 
   await shoot(win, 'settings-a-default', '');
   await shoot(win, 'settings-b-listening', `document.getElementById('hk-capture').click();`);
+  // Settings save as they change: a taken hotkey is refused on the spot.
   await shoot(
     win,
     'settings-c-conflict',
     `document.getElementById('hk-capture').click();
      document.dispatchEvent(new KeyboardEvent('keydown',
-       { code: 'KeyJ', ctrlKey: true, altKey: true, bubbles: true }));
-     document.getElementById('btn-save').click();`
+       { code: 'KeyJ', ctrlKey: true, altKey: true, bubbles: true }));`
   );
+  await shoot(win, 'settings-h-saved', `document.getElementById('auto-launch').click();`);
 
   // The updates section in each state main can report.
   for (const [name, state] of [

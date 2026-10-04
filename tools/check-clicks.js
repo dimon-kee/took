@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Clicks through the recording card's dropdowns and the settings checkbox with
+ * Clicks through the recording card's dropdowns and the settings window with
  * real input events (webContents.sendInputEvent) rather than element.click().
  *
  * element.click() fires a lone click with no press before it, so anything that
@@ -56,15 +56,25 @@ ipcMain.handle('overlay:fallback-shot', () => {
   return desktop;
 });
 
-let saved = null;
+// Answers the way main does: what is in effect after the save, and a hotkey
+// another program owns — here Ctrl+Alt+J — refused, with the old one kept.
+const TAKEN = 'CommandOrControl+Alt+J';
+const saves = [];
+let effective = { ...DEFAULTS, shortcuts: { ...DEFAULTS.shortcuts } };
+let autoLaunch = true;
 ipcMain.handle('settings:load', () => ({
-  settings: { ...DEFAULTS, shortcuts: { ...DEFAULTS.shortcuts } },
-  autoLaunch: true,
+  settings: structuredClone(effective),
+  autoLaunch,
   defaults: { ...DEFAULTS, saveDirLabel: 'C:\\Took', languages: LANGUAGES },
 }));
 ipcMain.handle('settings:save', (event, next) => {
-  saved = next;
-  return { ok: true, languageChanged: false };
+  saves.push(structuredClone(next));
+  const conflicts = Object.keys(next.shortcuts).filter((k) => next.shortcuts[k] === TAKEN);
+  if (conflicts.length) return { ok: false, conflicts, settings: structuredClone(effective), autoLaunch };
+  const { autoLaunch: wanted, ...rest } = next;
+  effective = structuredClone(rest);
+  if (typeof wanted === 'boolean') autoLaunch = wanted;
+  return { ok: true, languageChanged: false, settings: structuredClone(effective), autoLaunch };
 });
 ipcMain.handle('settings:pick-dir', () => null);
 ipcMain.on('settings:open-dir', () => {});
@@ -157,7 +167,7 @@ async function recordCard() {
 }
 
 async function settingsWindow() {
-  console.log('\n设置窗口的勾选框');
+  console.log('\n设置窗口：改了就保存');
 
   const win = open('settings', { width: 580, height: 680 });
   await win.loadFile(path.join(ROOT, 'src', 'renderer', 'settings', 'index.html'));
@@ -165,24 +175,46 @@ async function settingsWindow() {
 
   const page = driver(win);
   const checked = () => page.run(`document.getElementById('auto-launch').checked`);
+  const status = () => page.run(`(() => { const s = document.getElementById('status'); return { text: s.textContent, warn: s.classList.contains('warn') }; })()`);
+  const T = createTranslator('en');
 
+  check('没有保存按钮', await page.run(`!document.getElementById('btn-save') && !document.getElementById('btn-cancel')`));
+  check('底部说明改了会自动保存', (await status()).text === T('settings.autoSaves'), (await status()).text);
   check('按注册表显示为已勾选', await checked());
 
   // Every part of the row should toggle it: the box, its text, and the label
-  // in the left column.
+  // in the left column — and each flip goes straight to main.
   for (const [name, selector] of [
     ['方框', '.check i'],
     ['文字', '.check span'],
     ['左侧标签', 'label[for="auto-launch"]'],
   ]) {
     const was = await checked();
+    const before = saves.length;
     await page.clickOn(selector);
-    check(`点${name}能切换`, (await checked()) === !was);
+    const last = saves[saves.length - 1];
+    check(`点${name}能切换，马上保存`, (await checked()) === !was && saves.length === before + 1 && last.autoLaunch === !was, `autoLaunch=${last && last.autoLaunch}`);
   }
+  check('保存后底部显示「已保存」', (await status()).text === T('settings.saved'));
 
-  // Three flips from on leave it off, so the save has to carry the change.
-  await page.clickOn('#btn-save');
-  check('改过的值随保存发给主进程', saved && saved.autoLaunch === false, `autoLaunch=${saved && saved.autoLaunch}`);
+  await page.clickOn('.lang[data-lang="zh"]');
+  check('点语言马上保存', saves[saves.length - 1].language === 'zh');
+
+  // A hotkey: press the field, then the combination, as a keyboard would.
+  await page.clickOn('#hk-capture');
+  await page.keys('K', ['control', 'alt']);
+  const capture = () => page.run(`document.getElementById('hk-capture').textContent`);
+  check(
+    '录好的快捷键马上保存',
+    saves[saves.length - 1].shortcuts.capture === 'CommandOrControl+Alt+K' && (await capture()) === 'Ctrl + Alt + K',
+    await capture()
+  );
+
+  await page.clickOn('#hk-capture');
+  await page.keys('J', ['control', 'alt']);
+  const refused = await status();
+  check('被占用的快捷键退回原来的', (await capture()) === 'Ctrl + Alt + K', await capture());
+  check('并在底部说明', refused.warn && refused.text === T('settings.conflict', { names: T('settings.capture') }), refused.text);
 
   win.destroy();
 }
@@ -253,7 +285,14 @@ function driver(win) {
     await clickAt(p.x, p.y);
   }
 
-  return { run, clickAt, clickOn };
+  /** A key pressed with modifiers held, e.g. keys('K', ['control', 'alt']). */
+  async function keys(keyCode, modifiers) {
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
+    await wait(250);
+  }
+
+  return { run, clickAt, clickOn, keys };
 }
 
 function wait(ms) {

@@ -100,16 +100,16 @@ tasks:
       - cmd: node tools/check-scripts.js
 
   check:clicks:
-    desc: Click the screenshot ✓, the recording card's dropdowns and the settings checkbox with real mouse input
+    desc: Click the screenshot ✓ and the recording card's dropdowns, and work the settings window, with real mouse and keyboard input
     cmds:
       # preview 用的 element.click() 不带 mousedown，按下时就触发的逻辑它测不到。
       - cmd: npx electron tools/check-clicks.js
 
   check:launch:
-    desc: Start Took again while it runs — it must stay in the tray, and the new copy must quit without starting up
+    desc: Start Took every way it gets started and check what shows up, and that settings save as they change
     cmds:
       # 数据目录、临时目录和快捷键都用自己的，不碰真的 Took。托盘里会多出一个
-      # 图标几秒钟，右下角会弹一条「已经在运行」的通知。
+      # 图标几秒钟，设置窗口也会弹出来几次。
       - cmd: node tools/check-launch.js
 
   check:stitch:

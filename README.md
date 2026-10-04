@@ -24,7 +24,7 @@ task dev
 
 Without go-task installed, `npm start` / `npm run dev` / `npm run dist` work too.
 
-The dev build and an installed Took share their settings and count as one app: with either running, starting the other only brings up an "already running" notice from the first. `task stop` stops both.
+The dev build and an installed Took share their settings and count as one app: with either running, starting the other opens the first one's settings instead. `task stop` stops both.
 
 ## Start with Windows
 
@@ -36,7 +36,7 @@ task autostart:on
 
 This writes a value named `Took` under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` — current user only, no admin rights needed. `task autostart` reports the current state and `task autostart:off` removes it.
 
-At boot the app goes straight to the tray without opening a window.
+At boot the app goes straight to the tray without opening a window: the registered command carries `--autostart`, which keeps that start quiet.
 
 > Unpackaged, the registered command is `electron.exe <project dir>`, which depends on `node_modules` still being there. After `task dist` and installing the packaged build, toggle the setting off and on once so the registry points at the installed exe — both share one registry value, so you never end up with two start-up entries.
 
@@ -47,11 +47,11 @@ At boot the app goes straight to the tray without opening a window.
 | `Ctrl + Shift + S` | Screenshot |
 | `Ctrl + Shift + R` | Screen recording |
 
-Those are the defaults; both can be changed from the tray menu's settings window — see [Settings](#settings).
+Those are the defaults; both can be changed in the settings window — see [Settings](#settings).
 
-The app shows no window at all until a hotkey fires. Then the whole screen freezes and a `⋮⋮ Capture │ Scrolling │ Record` mode bar floats in at the top; everything disappears once you finish. The bar can be dragged, and it steps out of the way as soon as you pick an annotation tool.
+Took lives in the tray. A hotkey freezes the whole screen and a `⋮⋮ Capture │ Scrolling │ Record` mode bar floats in at the top; everything disappears once you finish. The bar can be dragged, and it steps out of the way as soon as you pick an annotation tool.
 
-Starting Took again while it runs — from the Start menu, or the installer's *Run Took* — opens nothing either; a notification says it is already in the tray.
+Starting Took yourself — from the Start menu, a shortcut or the installer's *Run Took* — opens its settings, whether or not it is already running, and so does clicking the tray icon. Only Start with Windows and the restart after an update leave it quietly in the tray.
 
 ## Screenshots
 
@@ -168,14 +168,14 @@ Screenshots are always PNG at **native resolution**. On a 1920×1080 screen at 1
 
 ## Settings
 
-Tray menu → Settings…
+Click the tray icon, or Tray menu → Settings…. Every change is saved as you make it; there is no Save button.
 
 **General** — language and start-up.
 
 - **Language**: English (the default) or 简体中文. It covers the tray menu, every window and the file dialogs. Windows already open keep their language until they are next opened; the settings window rebuilds itself straight away so you see the change.
-- **Start with Windows**: only written when you actually change it here, so saving other settings never undoes a change made with `task autostart`.
+- **Start with Windows**: only written when you actually change it here, so changing other settings never undoes a change made with `task autostart`.
 
-**Hotkeys** — click the field and press the combination you want. At least one modifier is required, otherwise that key would be swallowed system-wide. If a combination is already taken by another program the row turns red and **nothing is saved at all** — you never end up with half your hotkeys broken. Each row has a reset link.
+**Hotkeys** — click the field and press the combination you want. At least one modifier is required, otherwise that key would be swallowed system-wide. If a combination is already taken by another program it is refused on the spot and **the old one stays** — you never end up with a hotkey that does nothing. Each row has a reset link.
 
 **Save location** — where the save dialogs for screenshots and recordings start; the Open button beside it jumps straight there. Defaults to `Pictures/Took/`. A new directory is probe-written before it is accepted, so an unwritable path is rejected on the spot rather than when you try to save a capture.
 
@@ -262,8 +262,8 @@ Everything under `tools/` has a matching task:
 | `check-i18n.js` | `task check:i18n` | Both languages define the same keys, every referenced key exists, none are dead, and no user-facing Chinese is left hardcoded |
 | `check-scripts.js` | `task check:scripts` | Several classic scripts share each page's global scope; a top-level redeclaration between them stops the later one loading, and `node --check` cannot see it |
 | `check-settings.js` | `task check:settings` | Exercises the settings store, the save-path fallback and the hotkey conflict rollback |
-| `check-clicks.js` | `task check:clicks` | Clicks the screenshot ✓, the recording card's dropdowns and the settings checkbox with real mouse input. The previews use `element.click()`, which has no press before it, so anything that reacts to mousedown goes untested there |
-| `check-launch.js` | `task check:launch` | Starts Took again while it runs, as the Start menu or the installer's *Run Took* would: the running copy must stay in the tray rather than open a capture, and the new one must quit without starting up — its start-up would sweep the temp folder, taking the recording the running copy holds with it. Uses a data folder, temp folder and hotkeys of its own, so a real Took is untouched |
+| `check-clicks.js` | `task check:clicks` | Clicks the screenshot ✓ and the recording card's dropdowns with real mouse input, and works the settings window with real mouse and keyboard input: each change has to be saved as it is made, and a hotkey that is taken has to fall back to the old one. The previews use `element.click()`, which has no press before it, so anything that reacts to mousedown goes untested there |
+| `check-launch.js` | `task check:launch` | Starts Took every way it gets started: by Start with Windows or after an update it stays in the tray; by hand it opens the settings — and while it already runs, the running copy opens them rather than a capture, while the new one quits without starting up (its start-up would sweep the temp folder, taking the recording the running copy holds with it). Also flips a switch in the real settings window and checks settings.json follows, with no Save button. Uses a data folder, temp folder and hotkeys of its own, so a real Took is untouched |
 | `check-stitch.js` | `task check:stitch` | Feeds the scrolling-screenshot stitcher synthetic pages with known answers, scrolled unevenly, and checks every offset and the result pixel for pixel. Plain Node, so CI runs it too |
 | `check-longshot.js` | `task check:longshot` | A scrolling screenshot end to end through the real overlay and a live stream: a page numbering its own pixel rows is scrolled under the selection, and the result must read those numbers back unbroken. Puts an overlay on screen for a few seconds |
 | `check-update.js` | `task check:update` | The updater against a local stand-in for GitHub: up to date, update found, verified download, tampered download, server down, automatic mode, clearing the cache after an update. `-- --live` downloads the newest real release instead |

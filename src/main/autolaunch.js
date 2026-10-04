@@ -19,12 +19,16 @@ const { app } = require('electron');
 
 const REGISTRY_NAME = 'Took';
 
+// Marks a launch by this entry: Took then starts in the tray, without the
+// settings window any other launch opens.
+const FLAG = '--autostart';
+
 function launchTarget() {
-  if (app.isPackaged) return { path: process.execPath, args: [] };
+  if (app.isPackaged) return { path: process.execPath, args: [FLAG] };
 
   return {
     path: process.execPath,
-    args: [path.resolve(__dirname, '..', '..')],
+    args: [path.resolve(__dirname, '..', '..'), FLAG],
   };
 }
 
@@ -60,4 +64,4 @@ function refresh() {
   if (enabled()) set(true);
 }
 
-module.exports = { enabled, set, refresh, launchTarget };
+module.exports = { enabled, set, refresh, launchTarget, FLAG };
