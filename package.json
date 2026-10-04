@@ -1,6 +1,6 @@
 {
   "name": "took",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "截图 / 录屏工具",
   "main": "src/main/index.js",
   "author": "dimonkyk",
