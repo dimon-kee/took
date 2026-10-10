@@ -15,7 +15,8 @@
  */
 
 const { app, BrowserWindow, ipcMain, nativeImage, screen } = require('electron');
-const { describeDisplays, captureDisplayImage } = require('../src/main/capture');
+const { describeDisplays, grabDisplay, captureDisplayImage } = require('../src/main/capture');
+const screens = require('../src/main/screens');
 const { createOverlayWindow } = require('../src/main/windows');
 const longCapture = require('../src/main/longcapture');
 
@@ -54,6 +55,7 @@ ipcMain.on('overlay:ready', (event) => {
 ipcMain.on('overlay:claim', () => {});
 ipcMain.on('overlay:cancel', () => {});
 ipcMain.handle('overlay:webcam', () => false);
+ipcMain.handle('overlay:source-id', (event, id) => screens.sourceIdFor(id));
 ipcMain.handle('overlay:fallback-shot', (event, id) => captureDisplayImage(id));
 ipcMain.handle('overlay:save', () => false);
 ipcMain.handle('overlay:copy', (event, dataURL) => {
@@ -84,7 +86,8 @@ app.whenReady().then(async () => {
 
 async function run() {
   const display = screen.getPrimaryDisplay();
-  const shot = (await describeDisplays()).find((s) => s.displayId === display.id);
+  const shot = describeDisplays().find((s) => s.displayId === display.id);
+  if (shot) shot.sourceId = await screens.sourceIdFor(display.id);
   if (!shot || !shot.sourceId) throw new Error('找不到主屏幕的捕获源');
 
   // Keep the page away from the pointer: it would be captured along with it.
@@ -113,6 +116,8 @@ async function run() {
   page.showInactive();
   const dpr = await page.webContents.executeJavaScript('window.devicePixelRatio');
 
+  // As main does at the press: the frame first, then the overlay.
+  shot.frame = grabDisplay(display.id);
   overlay = createOverlayWindow(shot);
   await new Promise((resolve) => overlay.webContents.once('did-finish-load', resolve));
   overlay.webContents.send('overlay:init', { mode: 'long', shot, cursor: pointer, isPrimary: true });

@@ -18,19 +18,23 @@ app.setName('Took');
 app.on('window-all-closed', () => {});
 
 const screens = require('../src/main/screens');
-const { describeDisplays } = require('../src/main/capture');
+const { describeDisplays, grabDisplay } = require('../src/main/capture');
 const { createOverlayWindow } = require('../src/main/windows');
 
 const FILM_MS = 1400;
 
 app.whenReady().then(async () => {
   const display = screen.getPrimaryDisplay();
-  const shots = await describeDisplays();
+  const shots = describeDisplays();
   const shot = shots.find((s) => s.displayId === display.id) || shots[0];
+  // The camera films the screen through a stream, and a stream needs the source.
+  shot.sourceId = await screens.sourceIdFor(shot.displayId);
 
   const camera = await startCamera(shot);
   await wait(350); // let the baseline settle
 
+  // As main does at the press: the frame first, then the overlay.
+  shot.frame = grabDisplay(shot.displayId);
   const overlay = await openOverlay(shot);
   await wait(FILM_MS);
 

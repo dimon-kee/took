@@ -2,39 +2,52 @@
 
 const { desktopCapturer, screen } = require('electron');
 const screens = require('./screens');
+const win32 = require('./win32');
 
 /**
  * Describes every display for the overlay.
  *
- * Deliberately carries no pixels: the overlay grabs its own frame straight from
- * a desktop MediaStream, which skips a PNG encode in main, the IPC transfer of
- * a multi-megabyte data URL, and a decode in the renderer.
+ * Carries no pixels: those come from grabDisplay below, as raw rows rather
+ * than a PNG, so nothing is encoded in main or decoded in the renderer.
  */
-async function describeDisplays() {
-  const displays = screen.getAllDisplays();
+function describeDisplays() {
+  return screen.getAllDisplays().map((display) => ({
+    displayId: display.id,
+    // Only the stream fallback and a scrolling screenshot use it, and they
+    // ask main when it is missing: the hotkey must never wait on getSources.
+    sourceId: screens.cachedSourceId(display.id),
+    bounds: display.bounds,
+    // Display-local work area: the overlay keeps its toolbars inside this so
+    // they never end up buried under the taskbar.
+    workArea: {
+      x: display.workArea.x - display.bounds.x,
+      y: display.workArea.y - display.bounds.y,
+      width: display.workArea.width,
+      height: display.workArea.height,
+    },
+    scaleFactor: display.scaleFactor,
+    // Expected native size. The overlay trusts the frame it actually gets
+    // over this, but it is the right size to ask the stream for.
+    pixelSize: {
+      width: Math.round(display.size.width * display.scaleFactor),
+      height: Math.round(display.size.height * display.scaleFactor),
+    },
+  }));
+}
 
-  return Promise.all(
-    displays.map(async (display) => ({
-      displayId: display.id,
-      sourceId: await screens.sourceIdFor(display.id),
-      bounds: display.bounds,
-      // Display-local work area: the overlay keeps its toolbars inside this so
-      // they never end up buried under the taskbar.
-      workArea: {
-        x: display.workArea.x - display.bounds.x,
-        y: display.workArea.y - display.bounds.y,
-        width: display.workArea.width,
-        height: display.workArea.height,
-      },
-      scaleFactor: display.scaleFactor,
-      // Expected native size. The overlay trusts the frame it actually gets
-      // over this, but it is the right size to ask the stream for.
-      pixelSize: {
-        width: Math.round(display.size.width * display.scaleFactor),
-        height: Math.round(display.size.height * display.scaleFactor),
-      },
-    }))
-  );
+/**
+ * The display as it is right now, grabbed with GDI the moment the hotkey fires
+ * — before any window of ours can appear on it.
+ *
+ * Null when GDI is unavailable or refuses (the secure desktop, for one); the
+ * overlay then grabs its own frame from a desktop MediaStream, the old and
+ * slower way.
+ */
+function grabDisplay(displayId) {
+  const display = screen.getAllDisplays().find((d) => d.id === displayId);
+  if (!display) return null;
+  // Main is per-monitor DPI aware, so the screen DC is in physical pixels.
+  return win32.grabScreen(screen.dipToScreenRect(null, display.bounds));
 }
 
 /**
@@ -65,4 +78,4 @@ async function captureDisplayImage(displayId) {
   return source.thumbnail.toDataURL();
 }
 
-module.exports = { describeDisplays, captureDisplayImage };
+module.exports = { describeDisplays, grabDisplay, captureDisplayImage };

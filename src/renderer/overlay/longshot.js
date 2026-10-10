@@ -174,7 +174,8 @@ window.TookLongShot = (() => {
   }
 
   async function openStream(ls, { shot, sel, viewW }) {
-    if (!shot.sourceId) throw new Error(T('err.noSource'));
+    const sourceId = shot.sourceId || (await window.took.sourceId(shot.displayId));
+    if (!sourceId) throw new Error(T('err.noSource'));
 
     const { width, height } = shot.pixelSize;
     ls.stream = await navigator.mediaDevices.getUserMedia({
@@ -182,7 +183,7 @@ window.TookLongShot = (() => {
       video: {
         mandatory: {
           chromeMediaSource: 'desktop',
-          chromeMediaSourceId: shot.sourceId,
+          chromeMediaSourceId: sourceId,
           minWidth: width,
           maxWidth: width,
           minHeight: height,

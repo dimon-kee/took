@@ -1,21 +1,37 @@
 'use strict';
 
 /**
- * Measures the hotkey-to-overlay path so it is obvious which step costs what.
+ * Times what the hotkey sets off, step by step, and checks the frozen frame is
+ * the screen, pixel for pixel:
+ *
+ *   - grabbing the display with GDI — main does it at the press
+ *   - handing the frame to an overlay that is already loaded, up to its first
+ *     paint
+ *   - an overlay from scratch: process, page, scripts. The spare overlay pays
+ *     this ahead of time, so the press does not.
+ *
+ * For the whole path as it is felt — a real key press to a visible overlay —
+ * see tools/check-hotkey.js.
  *
  *   npx electron tools/check-latency.js [rounds]
  */
 
-const path = require('path');
-const { app, screen, ipcMain, BrowserWindow } = require('electron');
+const { app, screen, ipcMain } = require('electron');
 
 app.setName('Took');
 app.on('window-all-closed', () => {});
 
-const screens = require('../src/main/screens');
-const { describeDisplays } = require('../src/main/capture');
+const { describeDisplays, grabDisplay } = require('../src/main/capture');
+const { createOverlayWindow } = require('../src/main/windows');
 
 const ROUNDS = Number(process.argv[2]) || 3;
+
+let failures = 0;
+
+function check(label, condition, detail) {
+  console.log(`  ${condition ? 'PASS' : 'FAIL'}  ${label}${detail ? `  — ${detail}` : ''}`);
+  if (!condition) failures++;
+}
 
 app.whenReady().then(async () => {
   const display = screen.getPrimaryDisplay();
@@ -25,91 +41,110 @@ app.whenReady().then(async () => {
   const add = (k, ms) => (totals[k] = (totals[k] || []).concat(ms));
   let sample = null;
 
-  // Cold: nothing cached, exactly like the very first hotkey after launch.
-  let t = Date.now();
-  await describeDisplays();
-  const cold = Date.now() - t;
+  try {
+    for (let round = 0; round < ROUNDS; round++) {
+      const shot = describeDisplays().find((s) => s.displayId === display.id);
 
-  // From here on the source IDs are cached, which is the steady state once
-  // warmUp() has run at startup.
-  for (let round = 0; round < ROUNDS; round++) {
-    t = Date.now();
-    const shots = await describeDisplays();
-    add('describeDisplays（已缓存）', Date.now() - t);
+      let t = performance.now();
+      const win = createOverlayWindow(shot);
+      await new Promise((resolve) => win.webContents.once('did-finish-load', resolve));
+      add('spare', performance.now() - t);
 
-    t = Date.now();
-    sample = await measureWindow(shots[0]);
-    add('建窗 + 载入 + 抓帧 + 首帧', Date.now() - t);
+      t = performance.now();
+      shot.frame = grabDisplay(shot.displayId);
+      add('grab', performance.now() - t);
+      if (!shot.frame) throw new Error('GDI 没抓到画面');
+
+      t = performance.now();
+      sample = await paint(win, shot);
+      add('paint', performance.now() - t);
+      win.destroy();
+    }
+  } catch (err) {
+    check('跑完', false, err.message);
+    app.exit(1);
+    return;
   }
 
-  console.log(`  ${String(cold).padStart(6)} ms  describeDisplays（冷启动，需枚举）`);
-  Object.entries(totals).forEach(([label, values]) => {
-    console.log(`  ${String(median(values)).padStart(6)} ms  ${label}`);
-  });
+  const grab = median(totals.grab);
+  const paintMs = median(totals.paint);
+  console.log('按下快捷键之后（毫秒，中位数）');
+  console.log(`  ${ms(grab)}  GDI 抓屏`);
+  console.log(`  ${ms(paintMs)}  交给已载好的覆盖层，到画好第一帧`);
+  console.log(`  ${ms(grab + paintMs)}  合计（再加上显示窗口，就是 check-hotkey 量到的）`);
+  console.log('\n提前做好，不在按键之后');
+  console.log(`  ${ms(median(totals.spare))}  从零建一个覆盖层：进程、页面、脚本`);
 
-  const warm = median(totals['describeDisplays（已缓存）']) + median(totals['建窗 + 载入 + 抓帧 + 首帧']);
-  console.log(`\n启动后预热过，按下快捷键到画面可见：约 ${warm} ms`);
-
-  console.log(
-    `\n抓到的画面 ${sample.size}，采样出 ${sample.colors} 种颜色，平均亮度 ${sample.brightness}` +
-      `\n  ${sample.colors > 8 ? '有真实内容' : '!! 颜色几乎单一，可能抓到了黑屏'}`
+  console.log('\n画面');
+  check(
+    '覆盖层画出的就是 GDI 抓到的，逐像素一致',
+    sample.matched === sample.points,
+    `${sample.size}，${sample.matched}/${sample.points} 个采样点一致`
   );
+  check('有真实内容，不是黑屏', sample.colors > 8, `${sample.colors} 种颜色`);
 
-  app.exit(0);
+  console.log(`\n${failures ? `${failures} 项失败` : '全部通过'}`);
+  app.exit(failures ? 1 : 0);
 });
+
+function ms(value) {
+  return String(Math.round(value)).padStart(6);
+}
 
 function median(values) {
   const sorted = values.slice().sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)];
 }
 
-/** Stands up a real overlay window and waits for it to report first paint. */
-function measureWindow(shot) {
-  return new Promise((resolve) => {
-    const win = new BrowserWindow({
-      x: shot.bounds.x,
-      y: shot.bounds.y,
-      width: shot.bounds.width,
-      height: shot.bounds.height,
-      frame: false,
-      show: false,
-      backgroundColor: '#000000',
-      webPreferences: {
-        preload: path.join(__dirname, '..', 'src', 'preload', 'overlay.js'),
-        contextIsolation: true,
-        sandbox: false,
-      },
-    });
+/**
+ * Hand a loaded overlay its frame, wait for its first paint, then read the
+ * canvas back on a grid and compare it with the frame main grabbed.
+ */
+function paint(win, shot) {
+  const { width, height, pixels } = shot.frame;
 
-    ipcMain.once('overlay:ready', async () => {
-      // Reaching "ready" only proves loadBase resolved — check the canvas has
-      // actual content, so a black or empty frame cannot pass as a success.
-      const sample = await win.webContents.executeJavaScript(`(() => {
-        const c = document.getElementById('base');
-        const x = c.getContext('2d', { willReadFrequently: true });
-        const d = x.getImageData(0, 0, Math.min(c.width, 600), Math.min(c.height, 400)).data;
-        const seen = new Set();
-        let sum = 0;
-        for (let i = 0; i < d.length; i += 4 * 37) {
-          seen.add((d[i] >> 4 << 8) | (d[i + 1] >> 4 << 4) | (d[i + 2] >> 4));
-          sum += d[i] + d[i + 1] + d[i + 2];
+  return new Promise((resolve, reject) => {
+    const onReady = async (event) => {
+      if (event.sender !== win.webContents) return;
+      ipcMain.removeListener('overlay:ready', onReady);
+
+      const points = [];
+      for (let gy = 0; gy < 9; gy++) {
+        for (let gx = 0; gx < 16; gx++) {
+          points.push([Math.floor(((gx + 0.5) * width) / 16), Math.floor(((gy + 0.5) * height) / 9)]);
         }
-        return { size: c.width + 'x' + c.height, colors: seen.size,
-                 brightness: Math.round(sum / (d.length / (4 * 37)) / 3) };
-      })()`);
+      }
 
-      win.destroy();
-      resolve(sample);
-    });
+      try {
+        const read = await win.webContents.executeJavaScript(`(() => {
+          const c = document.getElementById('base');
+          const x = c.getContext('2d');
+          return {
+            size: c.width + 'x' + c.height,
+            rgba: ${JSON.stringify(points)}.map(([px, py]) => Array.from(x.getImageData(px, py, 1, 1).data)),
+          };
+        })()`);
 
-    win.loadFile(path.join(__dirname, '..', 'src', 'renderer', 'overlay', 'index.html'));
-    win.webContents.once('did-finish-load', () => {
-      win.webContents.send('overlay:init', {
-        mode: 'capture',
-        isPrimary: true,
-        cursor: { x: 0, y: 0 },
-        shot,
-      });
+        let matched = 0;
+        const seen = new Set();
+        points.forEach(([px, py], i) => {
+          const at = (py * width + px) * 4; // BGRX
+          const [r, g, b] = read.rgba[i];
+          if (r === pixels[at + 2] && g === pixels[at + 1] && b === pixels[at]) matched++;
+          seen.add((r >> 4 << 8) | (g >> 4 << 4) | (b >> 4));
+        });
+        resolve({ size: read.size, points: points.length, matched, colors: seen.size });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    ipcMain.on('overlay:ready', onReady);
+
+    win.webContents.send('overlay:init', {
+      mode: 'capture',
+      isPrimary: true,
+      cursor: { x: 0, y: 0 },
+      shot,
     });
   });
 }

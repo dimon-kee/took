@@ -228,13 +228,16 @@
   /**
    * Freeze this display into the base canvas.
    *
-   * Pulls a single frame out of a desktop MediaStream rather than taking a PNG
-   * from main: no encode, no multi-megabyte IPC payload, no decode. Falls back
-   * to the data-URL path if the stream will not start.
+   * Main normally hands over the frame it grabbed when the hotkey fired. Without
+   * one, a single frame comes out of a desktop MediaStream instead — slower to
+   * start, but still no PNG to encode or decode — and failing that, a PNG.
    */
   async function loadBase(shot) {
     try {
-      await grabFromStream(shot);
+      const drawn = Boolean(shot.frame) && drawFrame(shot.frame);
+      // The canvas holds it now; S.shot need not keep 8 MB a display alive.
+      shot.frame = null;
+      if (!drawn) await grabFromStream(shot);
     } catch (err) {
       console.warn('[took] 抓帧失败，退回 PNG 路径:', err.message);
       const dataURL = await window.took.fallbackShot(shot.displayId);
@@ -245,8 +248,33 @@
     S.baseData = ctx.base.getImageData(0, 0, els.base.width, els.base.height).data;
   }
 
+  /**
+   * Paint main's GDI grab: top-down rows of BGRX, the fourth byte undefined —
+   * hence BGRX, not BGRA, or the screenshot could come out transparent.
+   * @returns false if this frame cannot be drawn, so the caller falls back
+   */
+  function drawFrame({ width, height, pixels }) {
+    let frame;
+    try {
+      frame = new VideoFrame(pixels, { format: 'BGRX', codedWidth: width, codedHeight: height, timestamp: 0 });
+    } catch (err) {
+      console.warn('[took] 画面画不出来，改用抓流:', err.message);
+      return false;
+    }
+
+    try {
+      els.base.width = width;
+      els.base.height = height;
+      ctx.base.drawImage(frame, 0, 0);
+    } finally {
+      frame.close();
+    }
+    return true;
+  }
+
   async function grabFromStream(shot) {
-    if (!shot.sourceId) throw new Error(T('err.noSource'));
+    const sourceId = shot.sourceId || (await window.took.sourceId(shot.displayId));
+    if (!sourceId) throw new Error(T('err.noSource'));
 
     const { width, height } = shot.pixelSize;
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -254,7 +282,7 @@
       video: {
         mandatory: {
           chromeMediaSource: 'desktop',
-          chromeMediaSourceId: shot.sourceId,
+          chromeMediaSourceId: sourceId,
           minWidth: width,
           maxWidth: width,
           minHeight: height,

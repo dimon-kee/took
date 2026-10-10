@@ -18,7 +18,7 @@ const {
 
 const { pathToFileURL } = require('url');
 
-const { describeDisplays, captureDisplayImage } = require('./capture');
+const { describeDisplays, grabDisplay, captureDisplayImage } = require('./capture');
 const screens = require('./screens');
 const cursorTracker = require('./cursor');
 const longCapture = require('./longcapture');
@@ -125,8 +125,14 @@ app.whenReady().then(() => {
   autoLaunch.refresh();
   setupTray();
   applyShortcuts();
-  // Enumerating capture sources takes about a second; get it out of the way
-  // now so the first hotkey press does not have to wait for it.
+  // A loaded overlay for every display, so the hotkey only has to hand it a
+  // screenshot.
+  prepareOverlays();
+  ['display-added', 'display-removed', 'display-metrics-changed'].forEach((event) =>
+    screen.on(event, () => prepareSoon())
+  );
+  // A scrolling screenshot needs the capture sources, and enumerating them
+  // holds up main for a second or more — so now, while nobody is waiting.
   screens.warmUp();
   updater.init({
     autoUpdate: settings.get().autoUpdate,
@@ -245,22 +251,33 @@ function applyShortcuts() {
 // overlay lifecycle
 // ---------------------------------------------------------------------------
 
-async function startCapture() {
-  await openOverlays('capture');
+function startCapture() {
+  openOverlays('capture');
 }
 
-async function startRecordSelection() {
+function startRecordSelection() {
   if (recorderWin && !recorderWin.isDestroyed()) return; // already recording
-  await openOverlays('record');
+  openOverlays('record');
 }
 
-async function openOverlays(mode) {
+/**
+ * Everything from the hotkey to handing each overlay its frame runs in one go,
+ * with no await. A global hotkey's callback runs outside Node's callback scope,
+ * so code after an await there resumes only once something else wakes the
+ * event loop — measured at half a second and more on battery, on every press.
+ */
+function openOverlays(mode) {
   if (capturing || overlayWins.length) return;
   capturing = true;
 
   try {
-    const shots = await describeDisplays();
+    const shots = describeDisplays();
     if (!shots.length) throw new Error(t('err.noScreens'));
+
+    // Freeze every display before an overlay can appear on any of them.
+    shots.forEach((shot) => {
+      shot.frame = grabDisplay(shot.displayId);
+    });
 
     const cursor = screen.getCursorScreenPoint();
 
@@ -269,7 +286,7 @@ async function openOverlays(mode) {
     if (primaryIndex < 0) primaryIndex = 0;
 
     overlayWins = shots.map((shot, index) => {
-      const win = createOverlayWindow(shot);
+      const win = takeOverlay(shot);
       const isPrimary = index === primaryIndex;
 
       win.once('closed', () => {
@@ -279,12 +296,14 @@ async function openOverlays(mode) {
       win.__tookPrimary = isPrimary;
       win.__tookRevealed = false;
 
-      win.webContents.once('did-finish-load', () => {
+      const init = () => {
         win.webContents.send('overlay:init', { mode, shot, cursor, isPrimary });
         // Safety net: if the renderer never reports back, show it anyway
         // rather than leaving an invisible fullscreen window swallowing input.
         setTimeout(() => revealOverlay(win), 1500);
-      });
+      };
+      if (win.__tookLoaded) init();
+      else win.webContents.once('did-finish-load', init);
       return win;
     });
   } catch (err) {
@@ -303,6 +322,100 @@ function closeOverlays() {
   wins.forEach((w) => {
     if (!w.isDestroyed()) w.destroy();
   });
+  // Replace the spares this session used up — off the hotkey's path, once
+  // whatever ended the session (a copy, a save, a recording) has started.
+  if (wins.length) setTimeout(prepareOverlays, 500);
+}
+
+// ---------------------------------------------------------------------------
+// spare overlays
+// ---------------------------------------------------------------------------
+
+/**
+ * One hidden overlay per display, loaded and waiting for the next hotkey.
+ *
+ * Starting a window from scratch — a renderer process, the page, its scripts
+ * — took ~200 ms of every screenshot. A spare serves a single screenshot and
+ * is replaced afterwards, so no session inherits anything from the one before.
+ * @type {Map<number, BrowserWindow>}
+ */
+const spareOverlays = new Map();
+let quitting = false;
+let prepareTimer = null;
+
+app.on('before-quit', () => {
+  quitting = true;
+});
+
+/** Make sure every display has a usable spare, dropping any that no longer fit. */
+function prepareOverlays() {
+  if (quitting) return;
+  const displays = screen.getAllDisplays();
+
+  for (const [id, win] of spareOverlays) {
+    const display = displays.find((d) => d.id === id);
+    if (!display || !fits(win, display)) dropSpare(id, win);
+  }
+
+  displays.forEach((display) => {
+    if (spareOverlays.has(display.id)) return;
+
+    const win = createOverlayWindow({ bounds: display.bounds });
+    win.__tookBounds = { ...display.bounds };
+    win.__tookScale = display.scaleFactor;
+    win.webContents.once('did-finish-load', () => {
+      win.__tookLoaded = true;
+    });
+    // A spare that cannot draw would take the next hotkey and show nothing.
+    win.webContents.once('did-fail-load', () => dropSpare(display.id, win));
+    win.webContents.once('render-process-gone', () => {
+      if (dropSpare(display.id, win)) prepareSoon();
+    });
+    win.once('closed', () => dropSpare(display.id, win));
+    spareOverlays.set(display.id, win);
+  });
+}
+
+/** Coalesces the bursts of display events a single change can fire. */
+function prepareSoon(delay = 1000) {
+  clearTimeout(prepareTimer);
+  prepareTimer = setTimeout(prepareOverlays, delay);
+}
+
+/** Built for this display as it is now, and still able to draw. */
+function fits(win, display) {
+  if (win.isDestroyed() || win.webContents.isCrashed()) return false;
+  const a = win.__tookBounds;
+  const b = display.bounds;
+  const sameBounds = a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+  return sameBounds && win.__tookScale === display.scaleFactor;
+}
+
+/** @returns true when `win` was this display's spare */
+function dropSpare(displayId, win) {
+  if (spareOverlays.get(displayId) !== win) return false;
+  spareOverlays.delete(displayId);
+  if (!win.isDestroyed()) win.destroy();
+  return true;
+}
+
+/** Destroy every spare, e.g. once they carry the wrong language. */
+function resetSpares() {
+  for (const [id, win] of spareOverlays) dropSpare(id, win);
+  prepareSoon(0);
+}
+
+/** The display's spare, ready or still loading; a fresh window if it has none. */
+function takeOverlay(shot) {
+  const win = spareOverlays.get(shot.displayId);
+  const display = screen.getAllDisplays().find((d) => d.id === shot.displayId);
+
+  if (win && display && fits(win, display) && (win.__tookLoaded || win.webContents.isLoading())) {
+    spareOverlays.delete(shot.displayId);
+    return win;
+  }
+  if (win) dropSpare(shot.displayId, win);
+  return createOverlayWindow(shot);
 }
 
 function pointInBounds(p, b) {
@@ -312,6 +425,9 @@ function pointInBounds(p, b) {
 // ---------------------------------------------------------------------------
 // IPC — overlay
 // ---------------------------------------------------------------------------
+
+/** The stream fallback or a scrolling screenshot needs the display's source. */
+ipcMain.handle('overlay:source-id', (event, displayId) => screens.sourceIdFor(displayId));
 
 /** The overlay's own frame grab failed; hand it a PNG instead. */
 ipcMain.handle('overlay:fallback-shot', (event, displayId) => captureDisplayImage(displayId));
@@ -759,6 +875,8 @@ ipcMain.handle('settings:save', (event, next) => {
   // refreshed. Every other window is transient and picks it up on its own.
   const languageChanged = previous.language !== settings.get().language;
   if (languageChanged) {
+    // A window takes its language at creation; the spares have the old one.
+    resetSpares();
     setTimeout(() => {
       if (settingsWin && !settingsWin.isDestroyed()) settingsWin.destroy();
       settingsWin = null;
