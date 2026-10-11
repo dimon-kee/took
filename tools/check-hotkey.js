@@ -31,6 +31,7 @@ const FindWindowExW = user32.func('uintptr __stdcall FindWindowExW(uintptr paren
 const GetWindowThreadProcessId = user32.func('uint32 __stdcall GetWindowThreadProcessId(uintptr hwnd, _Out_ uint32 *pid)');
 const IsWindowVisible = user32.func('bool __stdcall IsWindowVisible(uintptr hwnd)');
 const GetClassNameW = user32.func('int __stdcall GetClassNameW(uintptr hwnd, _Out_ uint8_t *name, int max)');
+const GetForegroundWindow = user32.func('uintptr __stdcall GetForegroundWindow()');
 const OpenProcess = kernel32.func('void * __stdcall OpenProcess(uint32 access, bool inherit, uint32 pid)');
 const K32EmptyWorkingSet = kernel32.func('bool __stdcall K32EmptyWorkingSet(void *process)');
 const CloseHandle = kernel32.func('bool __stdcall CloseHandle(void *handle)');
@@ -120,6 +121,8 @@ function press(pid) {
 function dismiss(pid) {
   for (let i = 0; i < 10; i++) {
     sleep(400);
+    // Esc goes wherever the focus is; only press it while that is Took.
+    if (!windowsOf(pid).includes(GetForegroundWindow())) continue;
     chord([VK.ESCAPE]);
     if (until(() => visibleWindowsOf(pid).length === 0, 600)) {
       sleep(1000);

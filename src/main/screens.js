@@ -9,8 +9,9 @@ const { desktopCapturer, screen } = require('electron');
  * seconds a call, every call, however small the thumbnail — and a hotkey
  * pressed meanwhile waits it out. So the IDs are resolved once at startup, and
  * after that only when something needs one the cache does not hold. Screenshots
- * no longer do (main grabs their pixels with GDI); a scrolling screenshot and
- * the stream fallback still do, and ask for theirs as they start.
+ * no longer do (main grabs their pixels with GDI); a recording, a scrolling
+ * screenshot and the stream fallback still do, and ask for theirs as they
+ * start.
  */
 
 let cache = new Map(); // displayId -> sourceId

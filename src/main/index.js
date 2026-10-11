@@ -11,7 +11,6 @@ const {
   ipcMain,
   nativeImage,
   dialog,
-  desktopCapturer,
   screen,
   shell,
 } = require('electron');
@@ -133,8 +132,9 @@ app.whenReady().then(() => {
   ['display-added', 'display-removed', 'display-metrics-changed'].forEach((event) =>
     screen.on(event, () => prepareSoon())
   );
-  // A scrolling screenshot needs the capture sources, and enumerating them
-  // holds up main for a second or more — so now, while nobody is waiting.
+  // Recordings and scrolling screenshots need the capture sources, and
+  // enumerating them holds up main for a second or more — so now, while
+  // nobody is waiting.
   screens.warmUp();
   updater.init({
     autoUpdate: settings.get().autoUpdate,
@@ -596,18 +596,12 @@ ipcMain.on('webcam:failed', (event, message) => {
 ipcMain.handle('overlay:record', async (event, { rect, displayId, scaleFactor, settings }) => {
   closeOverlays();
 
-  const displays = screen.getAllDisplays();
-  const display = displays.find((d) => d.id === displayId);
-  const index = displays.findIndex((d) => d.id === displayId);
+  const display = screen.getAllDisplays().find((d) => d.id === displayId);
+  // Cached since startup. Asking getSources afresh froze Took for a second or
+  // two, right as the recording was meant to begin — and began it that late.
+  const sourceId = await screens.sourceIdFor(displayId);
 
-  const sources = await desktopCapturer.getSources({
-    types: ['screen'],
-    thumbnailSize: { width: 1, height: 1 },
-  });
-  const source =
-    sources.find((s) => String(s.display_id) === String(displayId)) || sources[index] || sources[0];
-
-  if (!source || !display) {
+  if (!sourceId || !display) {
     dialog.showErrorBox(t('err.recordTitle'), t('err.noSource'));
     closeWebcam();
     return false;
@@ -620,7 +614,7 @@ ipcMain.handle('overlay:record', async (event, { rect, displayId, scaleFactor, s
   recorderWin = createRecorderWindow();
   recorderWin.webContents.once('did-finish-load', () => {
     recorderWin.webContents.send('recorder:start', {
-      sourceId: source.id,
+      sourceId,
       settings,
       // Region is display-local CSS px; the recorder converts with scaleFactor.
       region: rect,

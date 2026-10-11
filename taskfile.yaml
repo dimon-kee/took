@@ -142,9 +142,22 @@ tasks:
       - cmd: npx electron tools/check-clipboard.js
 
   check:latency:
-    desc: Time the hotkey-to-overlay path, and confirm the grabbed frame is not blank
+    desc: Time each step after the hotkey, and check the overlay shows the screen pixel for pixel
     cmds:
       - cmd: npx electron tools/check-latency.js {{.CLI_ARGS | default 3}}
+
+  check:hotkey:
+    desc: Press the real capture hotkey and time the overlay appearing
+    cmds:
+      # 数据目录、临时目录和快捷键都用自己的，不碰真的 Took。取景层会在屏幕上
+      # 出现几次；只有 Took 拿着焦点时才按 Esc。
+      - cmd: node tools/check-hotkey.js {{.CLI_ARGS | default 5}}
+
+  check:record-start:
+    desc: Start recordings the way you do, time the recording bar, and check Took never freezes
+    cmds:
+      # 每次都真的录一两秒屏幕（含声音），录完连同临时目录一起删掉。
+      - cmd: node tools/check-record-start.js {{.CLI_ARGS | default 3}}
 
   check:capture-speed:
     desc: Break down why desktopCapturer is slow, versus a MediaStream frame grab
@@ -194,6 +207,8 @@ tasks:
       - task: check:clipboard
       - task: check:capture
       - task: check:latency
+      - task: check:hotkey
+      - task: check:record-start
       - task: check:media
       - task: check:mp4
       - task: check:record
