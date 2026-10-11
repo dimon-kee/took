@@ -114,7 +114,11 @@
   };
 
   const ctx = {
-    base: els.base.getContext('2d'),
+    // Opaque: a screenshot has no transparency, and Chromium takes the fourth
+    // byte of a BGRX frame as alpha anyway. GDI leaves that byte undefined —
+    // where it comes back 0, a transparent canvas would show the live desktop
+    // through the "frozen" one, and every colour read off it would be 0,0,0.
+    base: els.base.getContext('2d', { alpha: false }),
     mask: els.mask.getContext('2d'),
     shapes: els.shapes.getContext('2d'),
     live: els.live.getContext('2d'),
@@ -249,8 +253,8 @@
   }
 
   /**
-   * Paint main's GDI grab: top-down rows of BGRX, the fourth byte undefined —
-   * hence BGRX, not BGRA, or the screenshot could come out transparent.
+   * Paint main's GDI grab: top-down rows of BGRX, the fourth byte undefined.
+   * The canvas is opaque, which is what keeps that byte from mattering.
    * @returns false if this frame cannot be drawn, so the caller falls back
    */
   function drawFrame({ width, height, pixels }) {
