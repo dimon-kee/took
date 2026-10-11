@@ -105,6 +105,12 @@ tasks:
       # preview 用的 element.click() 不带 mousedown，按下时就触发的逻辑它测不到。
       - cmd: npx electron tools/check-clicks.js
 
+  check:magnifier:
+    desc: Check every line of the loupe's readout fits inside it, in each language, at its widest
+    cmds:
+      # 会短暂开一个小窗口；每种语言的放大镜截图存到 .preview/。
+      - cmd: npx electron tools/check-magnifier.js {{.PREVIEW_DIR}}
+
   check:displays:
     desc: Move the pointer across two displays, simulated on one, and check the loupe and keyboard follow it
     cmds:
@@ -208,6 +214,7 @@ tasks:
       - task: check:settings
       - task: check:clicks
       - task: check:displays
+      - task: check:magnifier
       - task: check:launch
       - task: check:stitch
       - task: check:longshot

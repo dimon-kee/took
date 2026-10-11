@@ -10,7 +10,10 @@ window.TookMagnifier = (() => {
   // redeclaration SyntaxError that stops the later script from loading at all.
   const T = (key, vars) => window.i18n.t(key, vars);
   const ZOOM = 8; // screen pixels per source pixel
-  const SIZE = 128; // loupe edge, CSS px
+  // Loupe edge, CSS px — wide enough for the readout's longest line, the
+  // English copy hint, and a multiple of ZOOM so the sampled pixel stays
+  // under the crosshair. style.css sizes the box to match.
+  const SIZE = 160;
   const GAP = 18; // distance from the cursor
   const EDGE = 10; // keep this far from the display edge
 
