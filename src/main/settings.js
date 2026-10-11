@@ -107,4 +107,23 @@ function checkWritable(dir) {
   }
 }
 
-module.exports = { DEFAULTS, get, set, saveDir, checkWritable, file };
+/**
+ * True only the very first time Took starts on this account, and from then on
+ * false. A settings.json also counts as having started before, so updating
+ * from a version without the marker does not look like a fresh install.
+ * Uninstalling deletes the whole data folder, so a reinstall starts afresh.
+ */
+function firstLaunch() {
+  const marker = path.join(app.getPath('userData'), 'launched');
+  if (fs.existsSync(marker) || fs.existsSync(file())) return false;
+
+  try {
+    fs.mkdirSync(path.dirname(marker), { recursive: true });
+    fs.writeFileSync(marker, '');
+  } catch (err) {
+    console.error('[took] 写入首次启动标记失败:', err);
+  }
+  return true;
+}
+
+module.exports = { DEFAULTS, get, set, saveDir, checkWritable, file, firstLaunch };

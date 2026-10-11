@@ -5,8 +5,8 @@
  *
  *   - by the Start with Windows entry (--autostart) or after an update
  *     (--updated): the tray only, no window
- *   - by hand — the Start menu, a shortcut, the installer's "Run Took":
- *     the settings window
+ *   - the first time ever, as after a fresh install: the settings window
+ *   - by hand from then on — the Start menu, a shortcut: the tray only
  *   - by hand while it already runs: the running copy opens its settings
  *     rather than a capture, and the new copy quits without starting up — its
  *     start-up would sweep the temp folder, deleting the recording the running
@@ -62,19 +62,36 @@ async function main() {
   );
 
   const base = ['.', `--user-data-dir=${data}`];
+  // No settings.json in here: Took has never run on it.
+  const fresh = path.join(dir, 'fresh');
+  fs.mkdirSync(fresh);
   // app.getPath('temp') follows TMP and TEMP, so the sweep stays in here too.
   const env = { ...process.env, TEMP: temp, TMP: temp };
   const running = [];
-  const start = (...args) => {
-    const child = spawn(ELECTRON, [...base, ...args], { cwd: ROOT, env, stdio: 'ignore' });
+  const startIn = (userData, ...args) => {
+    const child = spawn(ELECTRON, ['.', `--user-data-dir=${userData}`, ...args], { cwd: ROOT, env, stdio: 'ignore' });
     running.push(child);
     return child;
   };
+  const start = (...args) => startIn(data, ...args);
 
   try {
-    console.log('开机自启');
+    console.log('装好后第一次启动');
+    const newcomer = startIn(fresh);
+    let seen = watch(newcomer.pid, 30000, '^1\t.*\tSettings$');
+    check('打开设置', seen.some((w) => w.visible && w.title === 'Settings'), shown(seen) || '没有窗口');
+    stop(newcomer);
+
+    console.log('\n之后再启动');
+    const later = startIn(fresh);
+    seen = watch(later.pid, 30000, 'NotifyIcon');
+    seen = seen.concat(watch(later.pid, 3000, '^1\t'));
+    check('只进托盘，不弹窗口', seen.some((w) => /NotifyIcon/.test(w.cls)) && !seen.some((w) => w.visible), shown(seen));
+    stop(later);
+
+    console.log('\n开机自启');
     const first = start('--autostart', '--remote-debugging-port=0');
-    let seen = watch(first.pid, 30000, 'NotifyIcon');
+    seen = watch(first.pid, 30000, 'NotifyIcon');
     const up = seen.some((w) => /NotifyIcon/.test(w.cls));
     check('进了托盘', up, up ? '' : '等不到托盘图标');
     if (!up) return;
@@ -114,8 +131,9 @@ async function main() {
 
     console.log('\n没在运行时手动启动');
     const third = start();
-    seen = watch(third.pid, 30000, '^1\t.*\tSettings$');
-    check('打开设置', seen.some((w) => w.visible && w.title === 'Settings'), shown(seen) || '没有窗口');
+    seen = watch(third.pid, 30000, 'NotifyIcon');
+    seen = seen.concat(watch(third.pid, 3000, '^1\t'));
+    check('只进托盘，不弹窗口', seen.some((w) => /NotifyIcon/.test(w.cls)) && !seen.some((w) => w.visible), shown(seen));
     stop(third);
 
     console.log('\n更新装好后重新启动（--updated）');

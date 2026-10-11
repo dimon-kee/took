@@ -95,10 +95,12 @@ let lastClip = null;
 /** What clicking the tray's balloon does; set by whichever balloon went up last. */
 let balloonClick = null;
 
+// Took starts in the tray. Only the first start after installing opens the
+// settings, so a new user sees something; later starts — at boot, from the
+// Start menu — stay quiet until Took is launched again while it runs.
+//
 // Started by the Start with Windows entry, or by the installer after an
-// update: Took goes to the tray and stays there. Any other launch is someone
-// opening it — the Start menu, a shortcut, the installer's "Run Took" — and
-// gets the settings window.
+// update, it never opens a window, not even as a second copy.
 const QUIET = [autoLaunch.FLAG, '--updated'];
 const quiet = (argv) => argv.some((arg) => QUIET.includes(arg));
 
@@ -139,7 +141,7 @@ app.whenReady().then(() => {
     onChange: (state) => sendToSettings('update:state', state),
     onReady: (version) => offerRestart(version),
   });
-  if (!quiet(process.argv)) openSettings();
+  if (settings.firstLaunch() && !quiet(process.argv)) openSettings();
 });
 
 app.on('will-quit', () => {
