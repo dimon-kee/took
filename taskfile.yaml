@@ -105,6 +105,13 @@ tasks:
       # preview 用的 element.click() 不带 mousedown，按下时就触发的逻辑它测不到。
       - cmd: npx electron tools/check-clicks.js
 
+  check:displays:
+    desc: Move the pointer across two displays, simulated on one, and check the loupe and keyboard follow it
+    cmds:
+      # 一块屏也能跑：在屏幕中间并排开两个取景层，各当一块屏。会移动你的鼠标
+      # 几秒，跑完放回原处。
+      - cmd: npx electron tools/check-displays.js
+
   check:launch:
     desc: Start Took every way it gets started and check what shows up, and that settings save as they change
     cmds:
@@ -200,6 +207,7 @@ tasks:
       - task: check:scripts
       - task: check:settings
       - task: check:clicks
+      - task: check:displays
       - task: check:launch
       - task: check:stitch
       - task: check:longshot

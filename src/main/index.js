@@ -39,6 +39,7 @@ function t(key, vars) {
 }
 const {
   createOverlayWindow,
+  overlayAt,
   createPinWindow,
   createRecorderWindow,
   createRecordBarWindow,
@@ -296,6 +297,7 @@ function openOverlays(mode) {
       });
 
       win.__tookPrimary = isPrimary;
+      win.__tookBounds = shot.bounds;
       win.__tookRevealed = false;
 
       const init = () => {
@@ -458,6 +460,20 @@ ipcMain.on('overlay:claim', (event) => {
       win.webContents.send('overlay:yield');
     }
   });
+});
+
+/**
+ * The pointer left the display that owned the keyboard before anything was
+ * chosen on it. The display it is on now takes over — framed whole, with the
+ * loupe — and gets the keyboard, as if the hotkey had been pressed there.
+ */
+ipcMain.on('overlay:release', () => {
+  const cursor = screen.getCursorScreenPoint();
+  const win = overlayAt(overlayWins, cursor);
+  if (!win) return;
+  const b = win.__tookBounds;
+  win.webContents.send('overlay:take-over', { x: cursor.x - b.x, y: cursor.y - b.y });
+  win.focus();
 });
 
 ipcMain.on('overlay:cancel', () => {

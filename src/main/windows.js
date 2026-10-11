@@ -286,7 +286,29 @@ function createSettingsWindow() {
   return win;
 }
 
+/**
+ * The overlay on the display under `point` (screen DIP) — or the nearest one,
+ * should the point fall in a gap between displays of different scaling.
+ * Each window carries its display's bounds as __tookBounds.
+ */
+function overlayAt(wins, point) {
+  let nearest = null;
+  let best = Infinity;
+  wins.forEach((win) => {
+    if (win.isDestroyed()) return;
+    const b = win.__tookBounds;
+    const dx = Math.max(b.x - point.x, 0, point.x - (b.x + b.width - 1));
+    const dy = Math.max(b.y - point.y, 0, point.y - (b.y + b.height - 1));
+    if (dx * dx + dy * dy < best) {
+      best = dx * dx + dy * dy;
+      nearest = win;
+    }
+  });
+  return nearest;
+}
+
 module.exports = {
+  overlayAt,
   createOverlayWindow,
   createEditorWindow,
   createWebcamWindow,

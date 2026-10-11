@@ -198,12 +198,38 @@
     setCursorStyle();
     markDirty('mask', 'live');
     if (payload.isPrimary) drawMagnifier();
+    // The pointer reached this display while it was still setting up.
+    if (pendingTakeOver) takeOver(pendingTakeOver);
 
     // Two frames: one for the pending flush, one for it to reach the screen.
     // Only then may main reveal the window — otherwise you see a black flash
     // while the screenshot is still decoding.
     requestAnimationFrame(() => requestAnimationFrame(() => window.took.ready()));
   });
+
+  // Until something is chosen, the opening whole-display frame follows the
+  // pointer from display to display, the loupe and the keyboard with it. A
+  // selection stays where it is: only a click moves it to another display.
+  let pendingTakeOver = null;
+
+  document.documentElement.addEventListener('mouseleave', () => {
+    if (!S.ready || !S.active || S.phase !== 'idle' || S.drag) return;
+    S.active = false;
+    resetSelection();
+    window.took.release(); // main hands over to the display the pointer is on
+  });
+
+  window.took.onTakeOver((cursor) => {
+    if (S.ready) takeOver(cursor);
+    else pendingTakeOver = cursor;
+  });
+
+  function takeOver(cursor) {
+    pendingTakeOver = null;
+    S.cursor = cursor;
+    S.active = true;
+    resetSelection();
+  }
 
   // Where the pointer is during a scrolling screenshot, streamed from main.
   window.took.onPointer((p) => {

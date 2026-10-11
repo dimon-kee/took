@@ -18,6 +18,12 @@ contextBridge.exposeInMainWorld('took', {
   fallbackShot: (displayId) => ipcRenderer.invoke('overlay:fallback-shot', displayId),
 
   claim: () => ipcRenderer.send('overlay:claim'),
+
+  /** The pointer left this display before anything was chosen on it. */
+  release: () => ipcRenderer.send('overlay:release'),
+  /** The pointer is on this display now: it takes the keyboard. */
+  onTakeOver: (fn) => ipcRenderer.on('overlay:take-over', (_e, cursor) => fn(cursor)),
+
   cancel: () => ipcRenderer.send('overlay:cancel'),
 
   copy: (dataURL) => ipcRenderer.invoke('overlay:copy', dataURL),
