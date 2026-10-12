@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('path');
+const { execFileSync } = require('child_process');
 const { app } = require('electron');
 
 /**
@@ -32,16 +33,36 @@ function launchTarget() {
   };
 }
 
-function enabled() {
-  const settings = app.getLoginItemSettings({ ...launchTarget(), name: REGISTRY_NAME });
+const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+const APPROVED_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run';
 
-  // openAtLogin only reports true when Electron's reconstruction of the command
-  // line matches the stored value exactly, which it does not for an unpackaged
-  // run (`electron.exe "<project dir>"`). executableWillLaunchAtLogin ignores
-  // the args and answers the question we actually care about.
-  return process.platform === 'win32'
-    ? Boolean(settings.executableWillLaunchAtLogin)
-    : Boolean(settings.openAtLogin);
+/** The data of one registry value as reg.exe prints it, or null if it is not there. */
+function readValue(key, name) {
+  try {
+    const out = execFileSync('reg', ['query', key, '/v', name], { encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    const line = out.split(/\r?\n/).find((l) => l.trim().startsWith(`${name} `));
+    const match = line && line.match(/\sREG_\w+\s+(.*)$/);
+    return match ? match[1].trim() : '';
+  } catch {
+    return null; // reg exits non-zero when the value does not exist
+  }
+}
+
+function enabled() {
+  if (process.platform !== 'win32') {
+    return Boolean(app.getLoginItemSettings({ ...launchTarget(), name: REGISTRY_NAME }).openAtLogin);
+  }
+
+  // Not Electron's getLoginItemSettings: its executableWillLaunchAtLogin says
+  // false whenever the exe path holds a space (C:\Users\Dimon Kee\...), so the
+  // box unticked itself right after a successful write. Whether the entry
+  // points at this exact binary does not matter here — refresh() rewrites it
+  // to the running one at every start.
+  if (readValue(RUN_KEY, REGISTRY_NAME) === null) return false;
+
+  // Turned off in Task Manager / Settings > Startup: an odd first byte (03).
+  const approved = readValue(APPROVED_KEY, REGISTRY_NAME);
+  return !approved || (parseInt(approved.slice(0, 2), 16) & 1) === 0;
 }
 
 function set(on) {
