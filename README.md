@@ -46,10 +46,11 @@ At boot the app goes straight to the tray without opening a window: the register
 | --- | --- |
 | `Ctrl + Shift + S` | Screenshot |
 | `Ctrl + Shift + R` | Screen recording |
+| `Ctrl + Shift + X` | Extract text |
 
-Those are the defaults; both can be changed in the settings window — see [Settings](#settings).
+Those are the defaults; each can be changed in the settings window — see [Settings](#settings).
 
-Took lives in the tray. A hotkey freezes the whole screen and a `⋮⋮ Capture │ Scrolling │ Record` mode bar floats in at the top; everything disappears once you finish. The bar can be dragged, and it steps out of the way as soon as you pick an annotation tool.
+Took lives in the tray. A hotkey freezes the whole screen and a `⋮⋮ Capture │ Scrolling │ Record │ Text` mode bar floats in at the top; everything disappears once you finish. The bar can be dragged, and it steps out of the way as soon as you pick an annotation tool.
 
 Starting Took yourself — from the Start menu, a shortcut or the installer's *Run Took* — opens its settings, whether or not it is already running, and so does clicking the tray icon. Only Start with Windows and the restart after an update leave it quietly in the tray.
 
@@ -82,7 +83,7 @@ A toolbar appears below the region, aligned to its right edge.
 
 Drawing: rectangle, ellipse, line, arrow, pen, text, highlighter
 Processing: mosaic, blur, eraser (click a stroke to remove it)
-Output: pin to screen, decode QR, undo, save, cancel, done
+Output: pin to screen, decode QR, extract text, undo, save, cancel, done
 
 Picking any drawing tool opens a second row: three stroke widths and seven colours. The text tool's size follows the width setting.
 
@@ -121,6 +122,32 @@ Scroll faster than it can follow and the panel says so: scroll back a little and
 | `Enter` | Stop; once stopped, copy to clipboard |
 | `Ctrl + S` | Save as PNG, once stopped |
 | `Esc` | Cancel |
+
+## Text extraction
+
+Reads the text in a region — Chinese and English, digits, symbols — into a panel beside it, with its links ready to click. It runs on your own machine; nothing is uploaded.
+
+- `Ctrl + Shift + X` opens straight into **Text** mode
+- **Text** on the mode bar switches to it during any capture
+- **Extract text** on the annotation toolbar reads the region already chosen; your annotations stay, and switching back to Capture brings them back
+
+In Text mode, drag a region and let go: it is read at once, and again whenever the region is moved or resized. A click takes the whole display.
+
+The panel reads like a document. Select any part of it, or click a link to open it in your browser: web addresses with `http(s)://`, with `www.` or under a common ending such as `xtractify.ai/pricing`, and e-mail addresses. File names like `settings.json`, version numbers and code stay plain text. **Edit** turns it into plain text for correcting a misread character; **Done** finds the links again.
+
+| Key | Action |
+| --- | --- |
+| `Enter` | Copy all of it and finish |
+| `Ctrl + C` | Copy what is selected in the panel — all of it if nothing is — and finish |
+| `Ctrl + A` | Select all of the text |
+| `Esc` | Leave editing; again to cancel the capture |
+| Right click | Step back to choosing a region |
+
+Opening a link finishes the capture too.
+
+Like QR decoding, it reads the untouched pixels, so annotations do not get in the way. A few lines take a fraction of a second; a whole screen of text a second or two. Traditional Chinese is read, but a few characters can come out in their simplified form (裝 as 装).
+
+The models load in a process of their own when Text mode opens, and that process is ended after a minute unused, giving back the 200-odd MB it holds — so the first reading after a break takes a moment longer.
 
 ## Screen recording
 
@@ -175,7 +202,7 @@ Click the tray icon, or Tray menu → Settings…. Every change is saved as you 
 - **Language**: English (the default) or 简体中文. It covers the tray menu, every window and the file dialogs. Windows already open keep their language until they are next opened; the settings window rebuilds itself straight away so you see the change.
 - **Start with Windows**: only written when you actually change it here, so changing other settings never undoes a change made with `task autostart`.
 
-**Hotkeys** — click the field and press the combination you want. At least one modifier is required, otherwise that key would be swallowed system-wide. If a combination is already taken by another program it is refused on the spot and **the old one stays** — you never end up with a hotkey that does nothing. Each row has a reset link.
+**Hotkeys** — click the field and press the combination you want. At least one modifier is required, otherwise that key would be swallowed system-wide. If a combination is already taken by another program it is refused on the spot and **the old one stays** — you never end up with a hotkey that does nothing. One that another program takes later stops working, but never stops the rest of the settings from saving. Each row has a reset link.
 
 **Save location** — where the save dialogs for screenshots and recordings start; the Open button beside it jumps straight there. Defaults to `Pictures/Took/`. A new directory is probe-written before it is accepted, so an unwritable path is rejected on the spot rather than when you try to save a capture.
 
@@ -205,8 +232,13 @@ src/
 │   ├── mp4.js             lays MediaRecorder's fragmented MP4 out as a regular one
 │   ├── clipboard.js       clipboard writes on Electron 44's async API
 │   ├── autolaunch.js      start-with-Windows registration
+│   ├── ocr.js             starts and ends the text-recognition process
 │   ├── win32.js           Win32 bits Electron does not expose
 │   └── windows.js         window construction
+├── ocr/                 text recognition, in a process of its own
+│   ├── pipeline.js        PP-OCRv6 detection and recognition, after RapidOCR
+│   └── worker.js          the process's entry point
+├── shared/              strings, translation, links in recognised text
 ├── preload/             contextBridge for each window
 └── renderer/
     ├── overlay/           the capture overlay (the core)
@@ -216,6 +248,7 @@ src/
     │   ├── recordpanel.js   recording setup card
     │   ├── longshot.js      scrolling screenshot: card, panel, capture loop
     │   ├── stitch.js        works out where each scrolled frame goes
+    │   ├── textpanel.js     recognised-text panel
     │   └── icons.js         toolbar icons
     ├── recorder/          hidden worker window that owns the capture
     ├── recordbar/         recording control bar
@@ -245,6 +278,12 @@ Hotkey to visible is about 600ms, down from 1900ms. `task check:latency` measure
 
 **Scrolling screenshots are stitched from a live stream.** The region is cropped out of a desktop MediaStream frame by frame. Each frame's rows are hashed and vote on how far the content moved since the last frame, up or down; rows that come into view past either end of the image are added there. Fixed bars show up as rows that stay put. A new position has to agree with the rows voting for it and with everything the image already holds there, and if more than one position would fit — a page that repeats a picture can line up on the repeat — the frame is skipped rather than guessed at. The pointer is part of every captured frame, so the rows it covers are marked and redone from a later frame once it has moved on. `task check:stitch` runs the matcher against synthetic pages with known answers — hundreds of random ones scrolled both ways, plus fixed bars, scrollbars, a resting pointer and a flick too fast to follow — and `task check:longshot` runs the whole thing end to end.
 
+**Text recognition runs in a process of its own**, with PaddleOCR's PP-OCRv6 models — the tiny detector and the small recogniser, about 23 MB — through onnxruntime. They were picked against Windows' built-in OCR on real screenshots: on the same test card Windows misread a quarter of the characters, dropped whole lines of symbols and broke two links in five; it also spaces out Chinese characters and gives no confidence to filter junk by. The steps around the models are ported from RapidOCR, the Python pipeline they were chosen with, and `task check:ocr` holds each one to RapidOCR's own answers. Added on top: the region gets a margin of its own background first — text touching the edge reads badly — there is no direction classifier, since screen text is never upside down and it turned lines of symbols over, and pieces of one line that detection split, around an inline code chip say, are joined again.
+
+The process is a utilityProcess, started when Text mode opens and ended after a minute unused: loaded, it holds 200-odd MB, and Took's own memory stays as it was. It runs on four threads with onnxruntime's memory arena off — the arena is about a quarter faster and two and a half times the memory. A crash, a hang past 30 seconds or models that will not load come back to the panel as a reason with *Try again*, never as a stuck overlay. `task check:ocr-process` kills it at the awkward moments.
+
+`npm install` downloads the models from ModelScope into `assets/ocr/`, pinned by SHA-256, so the repository carries no binaries. The installer unpacks them and onnxruntime from the asar — onnxruntime opens its files itself — and carries the Visual C++ runtime onnxruntime.dll needs beside `Took.exe`: Electron neither needs nor ships it, and a clean Windows lacks it. `task check:ocr-package` checks the built app, CI included.
+
 **Updates come from GitHub Releases** through electron-updater. electron-builder writes `resources/app-update.yml` into the installed app from the `publish` block in `package.json`, and CI attaches `latest.yml` (version, file name, SHA-512) and the installer's blockmap to every release — so a download is verified before it runs, and later updates fetch only the blocks that changed. `task check:update` runs the updater against a local stand-in for GitHub; after publishing, `task check:update -- --live` downloads the newest real release and checks it against its `latest.yml`.
 
 **Uninstalling leaves nothing behind.** electron-builder's uninstaller removes the program and, with `deleteAppDataOnUninstall`, `%APPDATA%Took` — but not what an app keeps anywhere else. `build/installer.nsh` adds the rest: the updater's cache, the Run entry, parked recordings, an empty save folder. None of it runs during an update. `task check:install` installs, updates from an older release and uninstalls for real, then checks nothing is left; anything of yours it has to disturb is backed up and put back.
@@ -264,6 +303,12 @@ Everything under `tools/` has a matching task:
 | `check-settings.js` | `task check:settings` | Exercises the settings store, the save-path fallback and the hotkey conflict rollback |
 | `check-clicks.js` | `task check:clicks` | Clicks the screenshot ✓ and the recording card's dropdowns with real mouse input, and works the settings window with real mouse and keyboard input: each change has to be saved as it is made, and a hotkey that is taken has to fall back to the old one. The previews use `element.click()`, which has no press before it, so anything that reacts to mousedown goes untested there |
 | `check-launch.js` | `task check:launch` | Starts Took every way it gets started: by Start with Windows or after an update it stays in the tray; by hand it opens the settings — and while it already runs, the running copy opens them rather than a capture, while the new one quits without starting up (its start-up would sweep the temp folder, taking the recording the running copy holds with it). Also flips a switch in the real settings window and checks settings.json follows, with no Save button. Uses a data folder, temp folder and hotkeys of its own, so a real Took is untouched |
+| `check-ocr.js` | `task check:ocr` | Each text-recognition step — resizing, finding the boxes, decoding, joining lines — against answers taken from RapidOCR itself; then every screenshot in `.ocr-samples/` against a `.txt` of what it says, with the error rate and time (`-- -v` prints what was read). The folder is not in git, as screenshots tend to show private things: drop in any that came out wrong. Plain Node, so CI runs the steps |
+| `check-ocr-process.js` | `task check:ocr-process` | Runs recognition in its own process as Took does: started when warmed, reading a rendered line, gone once idle and back on the next request; killed while loading and while reading, timed out, and with no models, each must come back as a reason. Reports the process's memory |
+| `check-links.js` | `task check:links` | Which parts of recognised text become links — addresses with or without `http(s)://` or `www.`, e-mail, Chinese running straight into them, a full stop after — and which never may: file names, version numbers, code, `javascript:` and `file:`. Plain Node, so CI runs it too |
+| `check-ocr-package.js` | `task check:ocr-package` | After `task dist`: the runtime and models are unpacked, nothing it does not need came along, every DLL the runtime imports beyond Windows' own is in the app, and recognition runs from inside `app.asar`. CI runs it on every build |
+| `fetch-ocr-models.js` | `npm install` | Downloads the text-recognition models into `assets/ocr/`, pinned by SHA-256, and writes out the recognition model's character list |
+| `collect-vcruntime.js` | `task dist` | Copies the Visual C++ runtime DLLs onnxruntime needs, for the installer to put beside `Took.exe` |
 | `check-stitch.js` | `task check:stitch` | Feeds the scrolling-screenshot stitcher synthetic pages with known answers, scrolled unevenly, and checks every offset and the result pixel for pixel. Plain Node, so CI runs it too |
 | `check-longshot.js` | `task check:longshot` | A scrolling screenshot end to end through the real overlay and a live stream: a page numbering its own pixel rows is scrolled under the selection, and the result must read those numbers back unbroken. Puts an overlay on screen for a few seconds |
 | `check-update.js` | `task check:update` | The updater against a local stand-in for GitHub: up to date, update found, verified download, tampered download, server down, automatic mode, clearing the cache after an update. `-- --live` downloads the newest real release instead |
