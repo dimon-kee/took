@@ -6,7 +6,7 @@
   "author": "dimonkyk",
   "license": "MIT",
   "scripts": {
-    "postinstall": "node tools/make-icons.js",
+    "postinstall": "node tools/make-icons.js && node tools/fetch-ocr-models.js",
     "start": "electron .",
     "dev": "electron . --dev",
     "dist": "electron-builder --win --publish never"
@@ -19,7 +19,8 @@
     "electron-updater": "^6.8.9",
     "gifenc": "^1.0.3",
     "jsqr": "^1.4.0",
-    "koffi": "^3.3.1"
+    "koffi": "^3.3.1",
+    "onnxruntime-node": "^1.30.0"
   },
   "build": {
     "appId": "ai.xtractify.took",
