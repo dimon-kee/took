@@ -2,6 +2,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const {
   app,
   BrowserWindow,
@@ -26,6 +27,8 @@ const updater = require('./updater');
 const clips = require('./clips');
 const mp4 = require('./mp4');
 const settings = require('./settings');
+const { createOcr } = require('./ocr');
+const { safeHref } = require('../shared/links');
 const { pngFromDataURL, copyImage, copyFile, copyText } = require('./clipboard');
 const { createTranslator, LANGUAGES } = require('../shared/i18n');
 
@@ -62,7 +65,20 @@ if (process.platform === 'win32') app.setAppUserModelId('ai.xtractify.took');
 const SHORTCUT_ACTIONS = {
   capture: () => startCapture(),
   record: () => startRecordSelection(),
+  ocr: () => startTextCapture(),
 };
+
+// Text recognition, in a process of its own that comes and goes with use.
+// The models sit unpacked beside app.asar: onnxruntime opens them itself, and
+// cannot see inside the archive.
+const ocr = createOcr({
+  modelsDir: path.join(app.getAppPath(), 'assets', 'ocr').replace(/app\.asar(?=[\\/])/, 'app.asar.unpacked'),
+  idleMs: 60 * 1000,
+  timeoutMs: 30 * 1000,
+  // Recognition is quick enough on four; more would only make the rest of the
+  // machine stutter while it runs.
+  threads: Math.max(1, Math.min(4, os.cpus().length)),
+});
 
 // Overlay windows are transient and impossible to attach DevTools to mid-drag,
 // so surface their warnings and errors on the terminal instead.
@@ -148,6 +164,7 @@ app.whenReady().then(() => {
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   clips.clear();
+  ocr.stop();
 });
 
 // ---------------------------------------------------------------------------
@@ -202,6 +219,7 @@ function refreshTrayMenu() {
     Menu.buildFromTemplate([
       { label: `${t('tray.capture')}  ${prettyKey(shortcutFor('capture'))}`, click: () => startCapture() },
       { label: `${t('tray.record')}  ${prettyKey(shortcutFor('record'))}`, click: () => startRecordSelection() },
+      { label: `${t('tray.ocr')}  ${prettyKey(shortcutFor('ocr'))}`, click: () => startTextCapture() },
       { type: 'separator' },
       { label: t('tray.settings'), click: () => openSettings() },
       { label: t('tray.quit'), click: () => quit() },
@@ -261,6 +279,10 @@ function startCapture() {
 function startRecordSelection() {
   if (recorderWin && !recorderWin.isDestroyed()) return; // already recording
   openOverlays('record');
+}
+
+function startTextCapture() {
+  openOverlays('text');
 }
 
 /**
@@ -522,8 +544,26 @@ ipcMain.handle('overlay:pin', (event, { dataURL, rect }) => {
   return true;
 });
 
-ipcMain.handle('overlay:copy-text', async (event, text) => {
+ipcMain.handle('overlay:copy-text', async (event, text, { close } = {}) => {
   await copyText(text);
+  if (close) closeOverlays();
+  return true;
+});
+
+// --- text recognition --------------------------------------------------------
+
+/** A region is about to be recognised: have the models loaded by then. */
+ipcMain.on('overlay:ocr-warm', () => ocr.warm());
+
+/** RGBA pixels in; `{ lines }` or `{ error }` out — see src/main/ocr.js. */
+ipcMain.handle('overlay:ocr', (event, image) => ocr.recognize(image));
+
+/** A link in the recognised text: open it, and the capture is over. */
+ipcMain.handle('overlay:open-link', async (event, href) => {
+  const safe = safeHref(href);
+  if (!safe) return false;
+  closeOverlays();
+  await shell.openExternal(safe);
   return true;
 });
 

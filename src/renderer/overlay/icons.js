@@ -84,6 +84,16 @@ window.TookIcons = (() => {
       { sw: 1.4 }
     ),
 
+    // A "T" between scanner corners — text, read off the screen.
+    ocr: wrap(
+      '<path d="M3.2 6.4 V4.4 a1.2 1.2 0 0 1 1.2-1.2 H6.4"/>' +
+        '<path d="M13.6 3.2 H15.6 a1.2 1.2 0 0 1 1.2 1.2 V6.4"/>' +
+        '<path d="M16.8 13.6 V15.6 a1.2 1.2 0 0 1-1.2 1.2 H13.6"/>' +
+        '<path d="M6.4 16.8 H4.4 a1.2 1.2 0 0 1-1.2-1.2 V13.6"/>' +
+        '<path d="M7 7 H13 M10 7 V13.4"/>',
+      { sw: 1.5 }
+    ),
+
     undo: wrap('<path d="M7.4 5.4 L3.8 9 L7.4 12.6"/><path d="M3.8 9 H12 a4.2 4.2 0 0 1 0 8.4 H9"/>'),
 
     save: wrap('<path d="M10 3.6 V12.8"/><path d="M6.2 9.2 L10 13 L13.8 9.2"/><path d="M4 15.8 H16"/>'),

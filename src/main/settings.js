@@ -19,6 +19,7 @@ const DEFAULTS = {
   shortcuts: {
     capture: 'CommandOrControl+Shift+S',
     record: 'CommandOrControl+Shift+R',
+    ocr: 'CommandOrControl+Shift+X',
   },
   // null means "wherever saveDir() lands", i.e. Pictures/Took
   saveDir: null,

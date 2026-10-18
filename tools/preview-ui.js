@@ -13,11 +13,29 @@ const LANG = process.env.TOOK_LANG || 'en';
 const path = require('path');
 const fs = require('fs');
 const { app, BrowserWindow, ipcMain } = require('electron');
+const { createOcr } = require('../src/main/ocr');
 
 // This harness is its own entry point, so none of the app's IPC exists here.
 // Stub the channels the overlay reaches for so previews stay quiet.
 ['overlay:webcam', 'overlay:copy', 'overlay:save', 'overlay:pin', 'overlay:copy-text',
- 'overlay:record'].forEach((channel) => ipcMain.handle(channel, () => false));
+ 'overlay:record', 'overlay:open-link'].forEach((channel) => ipcMain.handle(channel, () => false));
+
+// Text mode reads the fake desktop for real; the states in between — still
+// reading, failed, nothing found — are held or answered on cue instead, so
+// every run shows the same thing.
+let ocr = null;
+let ocrAnswer = 'real'; // real | hold | fail | empty
+ipcMain.on('overlay:ocr-warm', () => ocr.warm());
+ipcMain.handle('overlay:ocr', (event, image) => {
+  if (ocrAnswer === 'hold') return new Promise(() => {});
+  if (ocrAnswer === 'fail') return { error: 'unavailable' };
+  if (ocrAnswer === 'empty') return { lines: [] };
+  return ocr.recognize(image);
+});
+
+// Windows tells Chromium when other windows cover this one, and it stops
+// painting; a capture then hands back whatever was last drawn.
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
 const OUT = process.argv[2] || path.join(app.getPath('temp'), 'took-preview');
 const W = 1280;
@@ -25,6 +43,12 @@ const H = 720;
 
 app.whenReady().then(async () => {
   fs.mkdirSync(OUT, { recursive: true });
+  ocr = createOcr({
+    modelsDir: path.join(__dirname, '..', 'assets', 'ocr'),
+    idleMs: 60000,
+    timeoutMs: 30000,
+    threads: 4,
+  });
 
   const win = new BrowserWindow({
     width: W,
@@ -166,11 +190,56 @@ app.whenReady().then(async () => {
     mode('long');
   `);
 
+  // --- Text mode, over the lines at the foot of the fake document ----------
+
+  await shoot(win, 'l-text-idle', `
+    menu(420, 300);
+    mode('text');
+    fire('mousemove', 420, 300);
+  `);
+
+  ocrAnswer = 'hold';
+  await shoot(win, 'm-text-reading', `
+    fire('mousedown', 170, 512);
+    fire('mousemove', 500, 580);
+    fire('mousemove', 760, 628);
+    fire('mouseup', 760, 628);
+  `);
+
+  // Back through Capture: entering Text mode reads the region again.
+  ocrAnswer = 'real';
+  await shoot(win, 'n-text-result', `
+    mode('capture');
+    mode('text');
+  `, () => win.webContents.executeJavaScript('window.__tookDebug().ocr.state !== "reading"'));
+
+  await shoot(win, 'o-text-editing', `
+    q('.tp-edit');
+  `);
+
+  ocrAnswer = 'fail';
+  await shoot(win, 'p-text-failed', `
+    mode('capture');
+    mode('text');
+  `);
+
+  ocrAnswer = 'empty';
+  await shoot(win, 'q-text-empty', `
+    q('.tp-retry');
+  `);
+
+  // Capture's toolbar, with 提取文字 beside the QR button.
+  await shoot(win, 'r-toolbar-ocr', `
+    mode('capture');
+  `);
+
+  ocr.stop();
   console.log(`\n预览图写在: ${OUT}`);
   app.exit(0);
 });
 
-async function shoot(win, name, script) {
+/** Run `script` in the overlay, wait for `settled()` if given, then capture. */
+async function shoot(win, name, script, settled) {
   await win.webContents.executeJavaScript(`(() => {
     const fire = (type, x, y) => document.dispatchEvent(
       new MouseEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true })
@@ -187,6 +256,10 @@ async function shoot(win, name, script) {
 
   // Two frames of slack so the rAF-batched canvas redraw lands before capture.
   await wait(500);
+  if (settled) {
+    for (let tries = 0; tries < 100 && !(await settled()); tries++) await wait(100);
+    await wait(300); // and for that change to reach the screen
+  }
 
   const dump = await win.webContents.executeJavaScript(
     `(() => {
@@ -196,6 +269,7 @@ async function shoot(win, name, script) {
         tool: active ? active.dataset.id : null,
         shapes: d.shapes,
         mode: d.mode,
+        ocr: d.ocr && d.mode === 'text' ? d.ocr.state + ' ' + JSON.stringify(d.ocr.text) : null,
         bar: !document.getElementById('modebar').classList.contains('hidden'),
         toolbar: describeBar(document.getElementById('toolbar')),
       };
@@ -214,9 +288,14 @@ async function shoot(win, name, script) {
   );
   console.log(
     `      mode=${dump.mode} tool=${dump.tool} shapes=${dump.shapes}` +
-      ` modebar=${dump.bar ? '显示' : '隐藏'} 工具栏=${dump.toolbar}`
+      ` modebar=${dump.bar ? '显示' : '隐藏'} 工具栏=${dump.toolbar}` +
+      (dump.ocr ? `\n      文字=${dump.ocr}` : '')
   );
 
+  // A change that came back over IPC — a recognition result — can sit
+  // unpainted while nothing else is moving; ask for a fresh frame first.
+  win.webContents.invalidate();
+  await wait(150);
   const image = await win.webContents.capturePage();
   const file = path.join(OUT, `${name}.png`);
   fs.writeFileSync(file, image.toPNG());
@@ -251,6 +330,12 @@ function fakeDesktop(w, h) {
     for (let i = 0; i < 12; i++) {
       x.fillRect(180, 200 + i * 26, 240 + ((i * 97) % 480), 9);
     }
+
+    // A few real lines for Text mode to read: Chinese, English, a link, an address.
+    x.fillStyle = '#3a3f4a'; x.font = '16px "Microsoft YaHei UI", sans-serif';
+    x.fillText('会议时间：10月18日 14:00，地点：3F 会议室 B', 180, 540);
+    x.fillText('资料：https://example.com/agenda  联系 sales@example.com', 180, 570);
+    x.fillText('Took 0.1.6 — text extraction preview', 180, 600);
 
     x.fillStyle = '#ff7a45'; x.fillRect(620, 430, 160, 90);
     x.fillStyle = '#36cfc9'; x.beginPath(); x.arc(860, 470, 46, 0, Math.PI * 2); x.fill();

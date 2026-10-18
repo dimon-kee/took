@@ -10,6 +10,7 @@
   const Mag = window.TookMagnifier;
   const RecordPanel = window.TookRecordPanel;
   const LongShot = window.TookLongShot;
+  const TextPanel = window.TookTextPanel;
 
   const DIM = 'rgba(0,0,0,0.45)';
   const SEL_STROKE = '#6c8cff';
@@ -50,6 +51,7 @@
     { id: 'eraser', title: 'tool.eraser' },
     { id: 'pin', title: 'tool.pin', action: true },
     { id: 'qr', icon: 'qr', title: 'tool.qr', action: true },
+    { id: 'ocr', icon: 'ocr', title: 'tool.ocr', action: true },
     { sep: true },
     { id: 'undo', title: 'tool.undo', action: true },
     { id: 'save', title: 'tool.save', action: true },
@@ -130,6 +132,10 @@
   let magnifier = null;
   let recPanel = null;
   let longShot = null;
+  let textPanel = null;
+  // Each reading gets a number; a result that is not the latest one's is dropped.
+  let ocrSeq = 0;
+  let ocrTimer = null;
   let toastTimer = null;
   let dirty = { mask: true, shapes: true, live: true };
   let rafId = 0;
@@ -176,6 +182,12 @@
       save: (dataURL) => window.took.save(dataURL),
       cancel: () => window.took.cancel(),
     });
+    textPanel = TextPanel.create(els.ui, {
+      copy: (text) => window.took.copyText(text, { close: true }),
+      open: (href) => window.took.openLink(href),
+      retry: () => runOcr(),
+      findLinks: (text) => window.took.findLinks(text),
+    });
     wireBars();
     buildToolbar();
     buildSubbar();
@@ -204,7 +216,14 @@
     // Two frames: one for the pending flush, one for it to reach the screen.
     // Only then may main reveal the window — otherwise you see a black flash
     // while the screenshot is still decoding.
-    requestAnimationFrame(() => requestAnimationFrame(() => window.took.ready()));
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        window.took.ready();
+        // Opened for text: load the models while a region is picked, once the
+        // screenshot is up rather than competing with it.
+        if (S.mode === 'text' && payload.isPrimary) window.took.warmOcr();
+      })
+    );
   });
 
   // Until something is chosen, the opening whole-display frame follows the
@@ -239,6 +258,8 @@
   // Another display took over the interaction — drop whatever we had going so
   // two screens can never both hold a live selection.
   window.took.onYield(() => {
+    ocrSeq++;
+    clearTimeout(ocrTimer);
     S.active = false;
     S.phase = 'idle';
     S.sel = null;
@@ -649,6 +670,16 @@
     if (S.phase === 'ready') layoutBars();
     setCursorStyle();
     markDirty('live');
+
+    if (mode === 'text') {
+      window.took.warmOcr();
+      // A region already chosen is read straight away.
+      runOcr();
+    } else {
+      // Whatever is still being read is no longer wanted.
+      ocrSeq++;
+      clearTimeout(ocrTimer);
+    }
   }
 
   /** Visible while picking a region; a chosen tool means we are past that. */
@@ -783,20 +814,22 @@
   }
 
   function syncToolbar() {
-    // 录屏 and 长截图 have no annotation step — their card takes the toolbar's
-    // place.
-    if (S.mode === 'record' || S.mode === 'long') {
+    // 录屏, 长截图 and 文字 have no annotation step — their card or panel takes
+    // the toolbar's place.
+    if (S.mode === 'record' || S.mode === 'long' || S.mode === 'text') {
       els.toolbar.classList.add('hidden');
       els.subbar.classList.add('hidden');
       const show = S.phase === 'ready' && S.active;
       RecordPanel.show(recPanel, S.mode === 'record' && show, S.sel, S.viewW, S.viewH);
       LongShot.showCard(longShot, S.mode === 'long' && show, S.sel, S.viewW, S.viewH);
+      TextPanel.show(textPanel, S.mode === 'text' && show);
       syncModeBar();
       return;
     }
 
     RecordPanel.show(recPanel, false);
     LongShot.showCard(longShot, false);
+    TextPanel.show(textPanel, false);
     els.toolbar.querySelectorAll('.tool').forEach((el) => {
       el.classList.toggle('active', el.dataset.id === S.tool);
       if (el.dataset.id === 'undo') el.classList.toggle('disabled', S.shapes.length === 0);
@@ -828,6 +861,11 @@
       case 'qr':
         doQR();
         return;
+      case 'ocr':
+        // The same as picking 文字 on the mode bar, for the region already chosen.
+        commitText();
+        setMode('text');
+        return;
       default:
         commitText();
         S.tool = S.tool === item.id ? null : item.id;
@@ -846,6 +884,10 @@
     }
     if (S.mode === 'long') {
       if (S.phase === 'ready') LongShot.placeCard(longShot, S.sel, S.viewW, S.viewH);
+      return;
+    }
+    if (S.mode === 'text') {
+      if (S.phase === 'ready') TextPanel.place(textPanel, S.sel, S.viewW, S.viewH, S.workArea);
       return;
     }
 
@@ -1084,6 +1126,10 @@
       Mag.show(magnifier, false);
       layoutBars();
       markDirty('live');
+      // A region that moved shows other text; a click that went nowhere does not.
+      const s = d.start;
+      const moved = s.x !== S.sel.x || s.y !== S.sel.y || s.w !== S.sel.w || s.h !== S.sel.h;
+      if (S.mode === 'text' && moved) runOcr();
     }
   });
 
@@ -1127,6 +1173,7 @@
     syncWebcam();
     setCursorStyle();
     markDirty('live');
+    if (S.mode === 'text') runOcr();
   }
 
   function resetSelection() {
@@ -1134,6 +1181,8 @@
     S.tool = null;
     S.hoverShape = -1;
     S.toolbarPos = null;
+    ocrSeq++;
+    clearTimeout(ocrTimer);
     hideChrome();
 
     // Back to the opening state rather than to nothing selected.
@@ -1158,6 +1207,7 @@
     els.badge.classList.add('hidden');
     if (recPanel) RecordPanel.show(recPanel, false);
     if (longShot) LongShot.showCard(longShot, false);
+    if (textPanel) TextPanel.show(textPanel, false);
   }
 
   function point(e) {
@@ -1422,7 +1472,62 @@
       return;
     }
 
+    if (S.mode === 'text') {
+      copyRecognized(false);
+      return;
+    }
+
     copyImage(composite().toDataURL('image/png'));
+  }
+
+  // -------------------------------------------------------------------------
+  // text recognition
+  // -------------------------------------------------------------------------
+
+  /** Read the region's text into the panel. */
+  function runOcr() {
+    clearTimeout(ocrTimer);
+    if (!S.sel || S.mode !== 'text' || S.phase !== 'ready' || !S.active) return;
+
+    const seq = ++ocrSeq;
+    TextPanel.reading(textPanel);
+    TextPanel.show(textPanel, true);
+    layoutBars();
+
+    // The untouched pixels, as for QR codes: annotations would only get in the way.
+    const canvas = cropBase();
+    const img = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const done = (apply) => {
+      if (seq !== ocrSeq) return; // the region or the mode has moved on
+      apply();
+      layoutBars();
+    };
+
+    window.took
+      .recognize({ width: img.width, height: img.height, data: new Uint8Array(img.data.buffer) })
+      .then((result) =>
+        done(() => {
+          if (result.error) TextPanel.failed(textPanel, result.error);
+          else TextPanel.setLines(textPanel, result.lines);
+        })
+      )
+      .catch((err) => {
+        console.error('[took] 文字识别请求失败:', err);
+        done(() => TextPanel.failed(textPanel, 'crashed'));
+      });
+  }
+
+  /** Nudging with the arrows moves a pixel at a time; read once it settles. */
+  function scheduleOcr() {
+    clearTimeout(ocrTimer);
+    ocrTimer = setTimeout(runOcr, 400);
+  }
+
+  /** Copy what was read — the part selected in the panel, if asked — and finish. */
+  function copyRecognized(preferSelection) {
+    if (!TextPanel.hasText(textPanel)) return;
+    const picked = preferSelection ? TextPanel.selectedText(textPanel) : '';
+    window.took.copyText(picked || TextPanel.text(textPanel), { close: true });
   }
 
   function copyImage(dataURL) {
@@ -1595,11 +1700,14 @@
 
     if (mod && (e.key === 'c' || e.key === 'C')) {
       e.preventDefault();
+      // Text that was read: what is selected in the panel, or all of it.
+      if (S.mode === 'text' && S.phase === 'ready') return copyRecognized(true);
       return S.phase === 'ready' ? doConfirm() : copyColor();
     }
 
     if (mod && (e.key === 'a' || e.key === 'A')) {
       e.preventDefault();
+      if (S.mode === 'text' && TextPanel.hasText(textPanel)) return TextPanel.selectAll(textPanel);
       S.sel = { x: 0, y: 0, w: S.viewW, h: S.viewH };
       return enterReady();
     }
@@ -1627,6 +1735,7 @@
       layoutBadge();
       layoutBars();
       markDirty('mask', 'shapes', 'live');
+      if (S.mode === 'text') scheduleOcr();
     }
   });
 
@@ -1651,5 +1760,6 @@
     sel: S.sel,
     long: longShot ? LongShot.state(longShot) : null,
     longStats: longShot ? LongShot.stats(longShot) : null,
+    ocr: textPanel ? { state: textPanel.state, text: TextPanel.text(textPanel) } : null,
   });
 })();

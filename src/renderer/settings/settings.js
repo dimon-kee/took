@@ -17,7 +17,7 @@ const T = (key, vars) => window.i18n.t(key, vars);
     status: document.getElementById('status'),
   };
 
-  const LABELS = { capture: 'settings.capture', record: 'settings.record' };
+  const LABELS = { capture: 'settings.capture', record: 'settings.record', ocr: 'settings.ocr' };
 
   let current = null; // the settings as shown
   let defaults = null;

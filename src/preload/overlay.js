@@ -2,6 +2,7 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 const { setupI18n } = require('./i18n-bridge');
+const { findLinks } = require('../shared/links');
 const jsQR = require('jsqr');
 
 contextBridge.exposeInMainWorld('took', {
@@ -29,7 +30,8 @@ contextBridge.exposeInMainWorld('took', {
   copy: (dataURL) => ipcRenderer.invoke('overlay:copy', dataURL),
   save: (dataURL) => ipcRenderer.invoke('overlay:save', dataURL),
   pin: (payload) => ipcRenderer.invoke('overlay:pin', payload),
-  copyText: (text) => ipcRenderer.invoke('overlay:copy-text', text),
+  /** `{ close: true }` ends the capture once the text is on the clipboard. */
+  copyText: (text, options) => ipcRenderer.invoke('overlay:copy-text', text, options),
   startRecord: (payload) => ipcRenderer.invoke('overlay:record', payload),
   webcam: (payload) => ipcRenderer.invoke('overlay:webcam', payload),
 
@@ -38,6 +40,15 @@ contextBridge.exposeInMainWorld('took', {
   longPanel: (rect) => ipcRenderer.send('overlay:long-panel', rect),
   longStop: () => ipcRenderer.send('overlay:long-stop'),
   onPointer: (fn) => ipcRenderer.on('overlay:pointer', (_e, p) => fn(p)),
+
+  /** Text recognition: load the models now, so a region picked soon is read at once. */
+  warmOcr: () => ipcRenderer.send('overlay:ocr-warm'),
+  /** RGBA pixels `{ width, height, data }` → `{ lines }` or `{ error }`. */
+  recognize: (image) => ipcRenderer.invoke('overlay:ocr', image),
+  /** The links in a piece of text: `[{ start, end, href }]`. */
+  findLinks: (text) => findLinks(text),
+  /** Open a link from the recognised text; the capture ends. */
+  openLink: (href) => ipcRenderer.invoke('overlay:open-link', href),
 
   /** Decode a QR code out of raw RGBA pixels. Returns the text, or null. */
   decodeQR: (data, width, height) => {

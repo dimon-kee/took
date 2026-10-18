@@ -21,6 +21,7 @@ const en = {
   // tray
   'tray.capture': 'Screenshot',
   'tray.record': 'Record screen',
+  'tray.ocr': 'Extract text',
   'tray.settings': 'Settings…',
   'tray.quit': 'Quit',
 
@@ -28,6 +29,7 @@ const en = {
   'overlay.modeCapture': 'Capture',
   'overlay.modeLong': 'Scrolling',
   'overlay.modeRecord': 'Record',
+  'overlay.modeText': 'Text',
   'overlay.drag': 'Drag',
 
   // annotation tools
@@ -43,6 +45,7 @@ const en = {
   'tool.eraser': 'Eraser',
   'tool.pin': 'Pin to screen',
   'tool.qr': 'Decode QR code',
+  'tool.ocr': 'Extract text',
   'tool.undo': 'Undo  Ctrl+Z',
   'tool.save': 'Save  Ctrl+S',
   'tool.cancel': 'Cancel  Esc',
@@ -61,6 +64,20 @@ const en = {
   'toast.qrFound': 'Decoded and copied:\n{text}',
   'toast.qrMissing': 'No QR code found in the selection',
   'toast.copyFailed': 'Could not copy to the clipboard — try Save instead',
+
+  // recognised-text panel
+  'ocr.title': 'Extracted text',
+  'ocr.edit': 'Edit',
+  'ocr.doneEditing': 'Done',
+  'ocr.copyAll': 'Copy all',
+  'ocr.reading': 'Reading the text…',
+  'ocr.empty': 'No text found in the selection',
+  'ocr.failed': 'Text recognition failed: ',
+  'ocr.unavailable': 'it could not start. Its files may be missing, or blocked by antivirus.',
+  'ocr.crashed': 'it stopped unexpectedly.',
+  'ocr.timeout': 'it took too long.',
+  'ocr.unreadable': 'this selection could not be read.',
+  'ocr.retry': 'Try again',
 
   // recording setup card
   'rec.start': 'Start recording',
@@ -124,6 +141,7 @@ const en = {
     'Click a field and press the combination you want. At least one modifier is required.',
   'settings.capture': 'Screenshot',
   'settings.record': 'Record screen',
+  'settings.ocr': 'Extract text',
   'settings.reset': 'Reset',
   'settings.saveLocation': 'Save location',
   'settings.saveLocationHint': 'Where the save dialogs for screenshots and recordings start.',
@@ -194,12 +212,14 @@ const zh = {
 
   'tray.capture': '截图',
   'tray.record': '录屏',
+  'tray.ocr': '提取文字',
   'tray.settings': '设置…',
   'tray.quit': '退出',
 
   'overlay.modeCapture': '截图',
   'overlay.modeLong': '长截图',
   'overlay.modeRecord': '录屏',
+  'overlay.modeText': '文字',
   'overlay.drag': '拖动',
 
   'tool.rect': '矩形',
@@ -214,6 +234,7 @@ const zh = {
   'tool.eraser': '橡皮擦',
   'tool.pin': '贴图到屏幕',
   'tool.qr': '识别二维码',
+  'tool.ocr': '提取文字',
   'tool.undo': '撤销  Ctrl+Z',
   'tool.save': '保存  Ctrl+S',
   'tool.cancel': '取消  Esc',
@@ -230,6 +251,19 @@ const zh = {
   'toast.qrFound': '已识别并复制:\n{text}',
   'toast.qrMissing': '没有在选区里找到二维码',
   'toast.copyFailed': '复制到剪贴板失败，可以改用保存',
+
+  'ocr.title': '提取的文字',
+  'ocr.edit': '编辑',
+  'ocr.doneEditing': '完成',
+  'ocr.copyAll': '复制全部',
+  'ocr.reading': '正在识别文字…',
+  'ocr.empty': '没有在选区里识别到文字',
+  'ocr.failed': '文字识别失败：',
+  'ocr.unavailable': '识别组件没能启动，可能是文件缺失或被杀毒软件拦截了。',
+  'ocr.crashed': '识别进程意外退出了。',
+  'ocr.timeout': '识别时间太长，超时了。',
+  'ocr.unreadable': '这块选区没能识别。',
+  'ocr.retry': '重试',
 
   'rec.start': '开始录制',
   'rec.format': '选择格式',
@@ -285,6 +319,7 @@ const zh = {
   'settings.hotkeysHint': '点一下输入框，直接按下想要的组合。需要至少一个修饰键。',
   'settings.capture': '截图',
   'settings.record': '录屏',
+  'settings.ocr': '提取文字',
   'settings.reset': '恢复默认',
   'settings.saveLocation': '保存位置',
   'settings.saveLocationHint': '截图和录屏的「另存为」默认落在这里。',
