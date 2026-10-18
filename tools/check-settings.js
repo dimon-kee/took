@@ -98,6 +98,19 @@ function run() {
   globalShortcut.unregisterAll();
 
   check('畸形组合不会通过', register('NotAKey+++') === false);
+
+  console.log('\n保存时的快捷键冲突');
+  const before = { shortcuts: { capture: 'CommandOrControl+Shift+S', ocr: 'CommandOrControl+Shift+X' } };
+  const sameKeys = { shortcuts: { ...before.shortcuts } };
+  const newOcrKey = { shortcuts: { ...before.shortcuts, ocr: 'CommandOrControl+Alt+X' } };
+  check(
+    '之前就被别的程序占着的快捷键，不挡住保存别的设置',
+    JSON.stringify(settings.refusedShortcuts(['ocr'], before, sameKeys)) === '[]'
+  );
+  check(
+    '这次改的快捷键被占用，这次保存要拒绝',
+    JSON.stringify(settings.refusedShortcuts(['ocr'], before, newOcrKey)) === '["ocr"]'
+  );
 }
 
 function register(accelerator) {

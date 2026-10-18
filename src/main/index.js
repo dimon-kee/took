@@ -864,7 +864,7 @@ ipcMain.handle('settings:save', (event, next) => {
   }
 
   settings.set(next);
-  const conflicts = applyShortcuts();
+  const conflicts = settings.refusedShortcuts(applyShortcuts(), previous, settings.get());
 
   if (conflicts.length) {
     // Never leave the user with hotkeys that no longer fire.

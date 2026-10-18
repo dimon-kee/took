@@ -94,6 +94,16 @@ function saveDir() {
   }
 }
 
+/**
+ * Of the hotkeys that would not register, the ones a save has to be refused
+ * over: those it changed. One that was already unavailable before — taken by
+ * another program in the meantime — must not stop every other setting from
+ * saving.
+ */
+function refusedShortcuts(conflicts, before, after) {
+  return conflicts.filter((action) => before.shortcuts[action] !== after.shortcuts[action]);
+}
+
 /** Can we actually write there? Used to validate before accepting a new path. */
 function checkWritable(dir) {
   try {
@@ -126,4 +136,4 @@ function firstLaunch() {
   return true;
 }
 
-module.exports = { DEFAULTS, get, set, saveDir, checkWritable, file, firstLaunch };
+module.exports = { DEFAULTS, get, set, saveDir, checkWritable, refusedShortcuts, file, firstLaunch };
