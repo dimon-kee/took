@@ -67,8 +67,8 @@ const en = {
 
   // recognised-text panel
   'ocr.title': 'Extracted text',
-  'ocr.edit': 'Edit',
-  'ocr.doneEditing': 'Done',
+  'ocr.open': 'Open',
+  'ocr.close': 'Close  Esc',
   'ocr.copyAll': 'Copy all',
   'ocr.reading': 'Reading the text…',
   'ocr.empty': 'No text found in the selection',
@@ -253,8 +253,8 @@ const zh = {
   'toast.copyFailed': '复制到剪贴板失败，可以改用保存',
 
   'ocr.title': '提取的文字',
-  'ocr.edit': '编辑',
-  'ocr.doneEditing': '完成',
+  'ocr.open': '打开',
+  'ocr.close': '关闭  Esc',
   'ocr.copyAll': '复制全部',
   'ocr.reading': '正在识别文字…',
   'ocr.empty': '没有在选区里识别到文字',

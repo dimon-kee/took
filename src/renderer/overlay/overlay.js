@@ -185,6 +185,7 @@
     textPanel = TextPanel.create(els.ui, {
       copy: (text) => window.took.copyText(text, { close: true }),
       open: (href) => window.took.openLink(href),
+      cancel: () => window.took.cancel(),
       retry: () => runOcr(),
       findLinks: (text) => window.took.findLinks(text),
     });

@@ -133,14 +133,15 @@ Reads the text in a region — Chinese and English, digits, symbols — into a p
 
 In Text mode, drag a region and let go: it is read at once, and again whenever the region is moved or resized. A click takes the whole display.
 
-The panel reads like a document. Select any part of it, or click a link to open it in your browser: web addresses with `http(s)://`, with `www.` or under a common ending such as `xtractify.ai/pricing`, and e-mail addresses. File names like `settings.json`, version numbers and code stay plain text. **Edit** turns it into plain text for correcting a misread character; **Done** finds the links again.
+The text in the panel can be edited as it stands: click into it to fix a misread character. Links in it are underlined — web addresses with `http(s)://`, with `www.` or under a common ending such as `xtractify.ai/pricing`, and e-mail addresses — and found again as you type; file names like `settings.json`, version numbers and code stay plain text. Point at a link and an **Open** button floats above it. The ✕ in the corner cancels, like `Esc`.
 
 | Key | Action |
 | --- | --- |
 | `Enter` | Copy all of it and finish |
+| `Shift + Enter` | New line, while editing |
 | `Ctrl + C` | Copy what is selected in the panel — all of it if nothing is — and finish |
 | `Ctrl + A` | Select all of the text |
-| `Esc` | Leave editing; again to cancel the capture |
+| `Esc` | Cancel the capture |
 | Right click | Step back to choosing a region |
 
 Opening a link finishes the capture too.
@@ -305,6 +306,7 @@ Everything under `tools/` has a matching task:
 | `check-launch.js` | `task check:launch` | Starts Took every way it gets started: by Start with Windows or after an update it stays in the tray; by hand it opens the settings — and while it already runs, the running copy opens them rather than a capture, while the new one quits without starting up (its start-up would sweep the temp folder, taking the recording the running copy holds with it). Also flips a switch in the real settings window and checks settings.json follows, with no Save button. Uses a data folder, temp folder and hotkeys of its own, so a real Took is untouched |
 | `check-ocr.js` | `task check:ocr` | Each text-recognition step — resizing, finding the boxes, decoding, joining lines — against answers taken from RapidOCR itself; then every screenshot in `.ocr-samples/` against a `.txt` of what it says, with the error rate and time (`-- -v` prints what was read). The folder is not in git, as screenshots tend to show private things: drop in any that came out wrong. Plain Node, so CI runs the steps |
 | `check-ocr-process.js` | `task check:ocr-process` | Runs recognition in its own process as Took does: started when warmed, reading a rendered line, gone once idle and back on the next request; killed while loading and while reading, timed out, and with no models, each must come back as a reason. Reports the process's memory |
+| `check-ocr-panel.js` | `task check:ocr-panel` | Works the recognised-text panel in the real overlay, recording what it asks main to do: `Enter` copies all and finishes — but not the `Enter` that picks an input method's candidate, nor `Shift + Enter`; `Ctrl + C` copies the selection; `Esc` and ✕ cancel; typing finds the links again; the Open button over a link opens it |
 | `check-links.js` | `task check:links` | Which parts of recognised text become links — addresses with or without `http(s)://` or `www.`, e-mail, Chinese running straight into them, a full stop after — and which never may: file names, version numbers, code, `javascript:` and `file:`. Plain Node, so CI runs it too |
 | `check-ocr-package.js` | `task check:ocr-package` | After `task dist`: the runtime and models are unpacked, nothing it does not need came along, every DLL the runtime imports beyond Windows' own is in the app, and recognition runs from inside `app.asar`. CI runs it on every build |
 | `fetch-ocr-models.js` | `npm install` | Downloads the text-recognition models into `assets/ocr/`, pinned by SHA-256, and writes out the recognition model's character list |

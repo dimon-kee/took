@@ -213,8 +213,14 @@ app.whenReady().then(async () => {
     mode('text');
   `, () => win.webContents.executeJavaScript('window.__tookDebug().ocr.state !== "reading"'));
 
-  await shoot(win, 'o-text-editing', `
-    q('.tp-edit');
+  // The pointer on the first link floats Open above it; the text has the caret.
+  await shoot(win, 'o-text-link-hover', `
+    const text = document.querySelector('.tp-text');
+    text.focus();
+    const link = [...CSS.highlights.get('took-link')][0].getBoundingClientRect();
+    text.dispatchEvent(new MouseEvent('mousemove', {
+      clientX: link.left + link.width / 2, clientY: link.top + link.height / 2, bubbles: true,
+    }));
   `);
 
   ocrAnswer = 'fail';

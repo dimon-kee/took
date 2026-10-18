@@ -140,6 +140,11 @@ tasks:
     cmds:
       - cmd: npx electron tools/check-ocr-process.js
 
+  check:ocr-panel:
+    desc: Work the recognised-text panel's keys, editing and links in the real overlay
+    cmds:
+      - cmd: npx electron tools/check-ocr-panel.js
+
   check:links:
     desc: Check which parts of recognised text become links, and which never may
     cmds:
@@ -239,6 +244,7 @@ tasks:
       - task: check:stitch
       - task: check:ocr
       - task: check:ocr-process
+      - task: check:ocr-panel
       - task: check:links
       - task: check:longshot
       - task: check:update

@@ -3,11 +3,15 @@
 /**
  * The recognised-text panel beside the selection in Text mode.
  *
- * It reads by default: the text can be selected, and links open with a click.
- * Editing swaps in a plain textarea — one click cannot both open a link and
- * place a caret in it — and leaving it finds the links again in what was
- * typed. The overlay owns the keyboard; this only says what is selected and
- * what the text is now.
+ * The text is editable as it stands — a misread character is fixed by
+ * clicking into it and typing. Links in it are marked with the CSS Custom
+ * Highlight API rather than wrapped in elements, so the text stays one plain
+ * run: typing, undo and an input method all work as in any text field, and
+ * the links are found again as it changes. A click places the caret, links
+ * included; hovering a link floats an Open button above it.
+ *
+ * The overlay owns the keyboard until the text has focus; from then on the
+ * panel takes the keys that finish the capture itself.
  */
 window.TookTextPanel = (() => {
   // Scoped inside the IIFE: the overlay loads several classic scripts into one
@@ -16,6 +20,7 @@ window.TookTextPanel = (() => {
   const T = (key, vars) => window.i18n.t(key, vars);
 
   const GAP = 10;
+  const HIGHLIGHT = 'took-link';
 
   const REASONS = {
     unavailable: 'ocr.unavailable',
@@ -24,21 +29,24 @@ window.TookTextPanel = (() => {
     failed: 'ocr.unreadable',
   };
 
-  /** @param hooks { copy(text), open(href), retry(), findLinks(text) } */
+  /** @param hooks { copy(text), open(href), cancel(), retry(), findLinks(text) } */
   function create(root, hooks) {
     const el = document.createElement('div');
     el.className = 'textpanel hidden';
     el.innerHTML = `
       <div class="tp-head">
         <span class="tp-title">${T('ocr.title')}</span>
-        <button class="tp-edit" type="button"></button>
+        <button class="tp-close" type="button" title="${T('ocr.close')}">
+          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round"><path d="M5.5 5.5 L14.5 14.5 M14.5 5.5 L5.5 14.5"/></svg>
+        </button>
       </div>
       <div class="tp-status">
         <span class="tp-message"></span>
         <button class="tp-retry" type="button">${T('ocr.retry')}</button>
       </div>
-      <div class="tp-view"></div>
-      <textarea class="tp-editor hidden" spellcheck="false"></textarea>
+      <div class="tp-text" contenteditable="plaintext-only" spellcheck="false"></div>
+      <button class="tp-open hidden" type="button">${T('ocr.open')} ↗</button>
       <button class="tp-copy" type="button">${T('ocr.copyAll')}<span class="tp-key">Enter</span></button>`;
     root.appendChild(el);
 
@@ -46,18 +54,20 @@ window.TookTextPanel = (() => {
       el,
       hooks,
       state: 'idle', // idle | reading | result | empty | error
-      editing: false,
-      text: '',
+      links: [],
+      hovered: null,
+      hideTimer: null,
+      composing: false,
       els: {
-        edit: el.querySelector('.tp-edit'),
         status: el.querySelector('.tp-status'),
         message: el.querySelector('.tp-message'),
         retry: el.querySelector('.tp-retry'),
-        view: el.querySelector('.tp-view'),
-        editor: el.querySelector('.tp-editor'),
+        text: el.querySelector('.tp-text'),
+        open: el.querySelector('.tp-open'),
         copy: el.querySelector('.tp-copy'),
       },
     };
+    const { text, open } = panel.els;
 
     // The overlay reads a mousedown anywhere as the start of a new selection,
     // and a right click as a step back; neither should happen in here.
@@ -67,25 +77,48 @@ window.TookTextPanel = (() => {
       e.stopPropagation();
     });
 
-    panel.els.view.addEventListener('click', (e) => {
-      const link = e.target.closest('.tp-link');
-      // A drag that happens to end on a link was selecting text, not clicking it.
-      if (!link || !window.getSelection().isCollapsed) return;
-      hooks.open(link.dataset.href);
-    });
-
-    panel.els.edit.addEventListener('click', () => (panel.editing ? stopEditing(panel) : startEditing(panel)));
-    panel.els.copy.addEventListener('click', () => hooks.copy(text(panel)));
+    el.querySelector('.tp-close').addEventListener('click', () => hooks.cancel());
+    panel.els.copy.addEventListener('click', () => hooks.copy(textOf(panel)));
     panel.els.retry.addEventListener('click', () => hooks.retry());
 
-    // Typing belongs to the textarea, not to the overlay's shortcuts — except
-    // Esc, which leaves editing and keeps what was typed.
-    panel.els.editor.addEventListener('keydown', (e) => {
+    // An input method's candidates are not text yet; find links once they are.
+    text.addEventListener('compositionstart', () => (panel.composing = true));
+    text.addEventListener('compositionend', () => {
+      panel.composing = false;
+      markLinks(panel);
+    });
+    text.addEventListener('input', () => {
+      if (!panel.composing) markLinks(panel);
+      hideOpen(panel, 0);
+    });
+
+    text.addEventListener('keydown', (e) => {
+      // Typing belongs to the text, not to the overlay's shortcuts.
       e.stopPropagation();
+      // Enter also picks an input method's candidate; that one is not ours.
+      if (e.isComposing || e.keyCode === 229) return;
+      const mod = e.ctrlKey || e.metaKey;
+
       if (e.key === 'Escape') {
         e.preventDefault();
-        stopEditing(panel);
+        hooks.cancel();
+      } else if (e.key === 'Enter' && !e.shiftKey && !mod) {
+        // Shift+Enter is the line break.
+        e.preventDefault();
+        hooks.copy(textOf(panel));
+      } else if (mod && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        hooks.copy(selectedText(panel) || textOf(panel));
       }
+    });
+
+    text.addEventListener('mousemove', (e) => hoverAt(panel, e.clientX, e.clientY));
+    text.addEventListener('mouseleave', () => hideOpen(panel));
+    text.addEventListener('scroll', () => hideOpen(panel, 0));
+    open.addEventListener('mouseenter', () => clearTimeout(panel.hideTimer));
+    open.addEventListener('mouseleave', () => hideOpen(panel));
+    open.addEventListener('click', () => {
+      if (panel.hovered) hooks.open(panel.hovered.href);
     });
 
     sync(panel);
@@ -95,10 +128,7 @@ window.TookTextPanel = (() => {
   function show(panel, visible) {
     if (!panel) return;
     panel.el.classList.toggle('hidden', !visible);
-  }
-
-  function isShown(panel) {
-    return Boolean(panel) && !panel.el.classList.contains('hidden');
+    if (!visible) hideOpen(panel, 0);
   }
 
   /** Beside the selection: right if it fits, else left, else inside its right edge. */
@@ -120,23 +150,21 @@ window.TookTextPanel = (() => {
 
   function reading(panel) {
     panel.state = 'reading';
-    panel.editing = false;
-    panel.text = '';
+    setText(panel, '');
     sync(panel);
   }
 
   function setLines(panel, lines) {
-    panel.editing = false;
-    panel.text = lines.join('\n');
-    panel.state = panel.text.trim() ? 'result' : 'empty';
-    render(panel);
+    const text = lines.join('\n');
+    panel.state = text.trim() ? 'result' : 'empty';
+    setText(panel, text);
     sync(panel);
   }
 
   function failed(panel, reason) {
     panel.state = 'error';
-    panel.editing = false;
     panel.reason = reason;
+    setText(panel, '');
     sync(panel);
   }
 
@@ -144,77 +172,126 @@ window.TookTextPanel = (() => {
     return Boolean(panel) && panel.state === 'result';
   }
 
-  function isEditing(panel) {
-    return Boolean(panel) && panel.editing;
-  }
-
   /** The text as it stands, edits included. */
   function text(panel) {
-    return panel.editing ? panel.els.editor.value : panel.text;
+    return textOf(panel);
   }
 
   /** Text selected in the panel, or '' — a selection elsewhere does not count. */
   function selectedText(panel) {
     const s = window.getSelection();
-    if (s.isCollapsed || !panel.els.view.contains(s.anchorNode)) return '';
+    if (s.isCollapsed || !panel.els.text.contains(s.anchorNode)) return '';
     return s.toString();
   }
 
   function selectAll(panel) {
     const range = document.createRange();
-    range.selectNodeContents(panel.els.view);
+    range.selectNodeContents(panel.els.text);
     const s = window.getSelection();
     s.removeAllRanges();
     s.addRange(range);
+    panel.els.text.focus();
   }
 
-  function startEditing(panel) {
-    if (panel.state !== 'result') return;
-    // Same height as the text it replaces, so the panel does not jump —
-    // measured while that text is still showing.
-    const height = panel.els.view.offsetHeight;
-    panel.editing = true;
-    panel.els.editor.value = panel.text;
-    sync(panel);
-    panel.els.editor.style.height = `${Math.max(height, 60)}px`;
-    panel.els.editor.focus();
+  // -------------------------------------------------------------------------
+  // the text and its links
+  // -------------------------------------------------------------------------
+
+  function setText(panel, value) {
+    panel.els.text.textContent = value;
+    hideOpen(panel, 0);
+    markLinks(panel);
   }
 
-  function stopEditing(panel) {
-    if (!panel.editing) return;
-    panel.editing = false;
-    panel.text = panel.els.editor.value;
-    render(panel);
-    sync(panel);
+  /**
+   * The editable text in reading order, with where each part of it lives:
+   * text nodes as they are, a <br> or the start of a block as a line break.
+   */
+  function walk(panel) {
+    const parts = [];
+    let value = '';
+    const visit = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        parts.push({ node, start: value.length });
+        value += node.data;
+      } else if (node.nodeName === 'BR') {
+        value += '\n';
+      } else {
+        if (node !== panel.els.text && /^(DIV|P)$/.test(node.nodeName) && value && !value.endsWith('\n')) value += '\n';
+        node.childNodes.forEach(visit);
+      }
+    };
+    visit(panel.els.text);
+    return { value, parts };
   }
 
-  /** The text, line by line, with its links made clickable. */
-  function render(panel) {
-    const view = panel.els.view;
-    view.textContent = '';
-    panel.text.split('\n').forEach((line) => {
-      const row = document.createElement('div');
-      row.className = 'tp-line';
-      let at = 0;
-      panel.hooks.findLinks(line).forEach((link) => {
-        if (link.start > at) row.appendChild(document.createTextNode(line.slice(at, link.start)));
-        const a = document.createElement('span');
-        a.className = 'tp-link';
-        a.dataset.href = link.href;
-        a.title = link.href;
-        a.textContent = line.slice(link.start, link.end);
-        row.appendChild(a);
-        at = link.end;
-      });
-      if (at < line.length) row.appendChild(document.createTextNode(line.slice(at)));
-      // An empty line still takes a line's height.
-      if (!line) row.appendChild(document.createElement('br'));
-      view.appendChild(row);
+  function textOf(panel) {
+    return walk(panel).value;
+  }
+
+  /** A DOM position for an offset into the walked text. */
+  function locate(parts, offset) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      if (offset >= p.start) return { node: p.node, offset: Math.min(offset - p.start, p.node.data.length) };
+    }
+    return null;
+  }
+
+  /** Find the links in the text as it is now, and mark them. */
+  function markLinks(panel) {
+    const { value, parts } = walk(panel);
+    panel.links = panel.hooks.findLinks(value).map((link) => {
+      const range = document.createRange();
+      const from = locate(parts, link.start);
+      const to = locate(parts, link.end);
+      if (from && to) {
+        range.setStart(from.node, from.offset);
+        range.setEnd(to.node, to.offset);
+      }
+      return { ...link, range };
     });
+    if (window.CSS && CSS.highlights) {
+      CSS.highlights.set(HIGHLIGHT, new Highlight(...panel.links.map((l) => l.range)));
+    }
+  }
+
+  /** Float the Open button over the link under the pointer, if there is one. */
+  function hoverAt(panel, x, y) {
+    const hit = panel.links.find((link) =>
+      [...link.range.getClientRects()].some((r) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)
+    );
+    if (!hit) {
+      hideOpen(panel);
+      return;
+    }
+    clearTimeout(panel.hideTimer);
+    if (panel.hovered === hit) return;
+    panel.hovered = hit;
+
+    // Above the line the pointer is on — a link can wrap onto the next.
+    const rect = [...hit.range.getClientRects()].find((r) => y >= r.top && y <= r.bottom) || hit.range.getBoundingClientRect();
+    const box = panel.el.getBoundingClientRect();
+    const open = panel.els.open;
+    open.title = hit.href;
+    open.classList.remove('hidden');
+    const above = rect.top - box.top - open.offsetHeight - 4;
+    const top = above >= 4 ? above : rect.bottom - box.top + 4;
+    const left = clamp(Math.min(x, rect.right) - box.left - open.offsetWidth / 2, 4, box.width - open.offsetWidth - 4);
+    open.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+  }
+
+  /** Hide the Open button — after a moment, so the pointer can get to it. */
+  function hideOpen(panel, delay = 180) {
+    clearTimeout(panel.hideTimer);
+    panel.hideTimer = setTimeout(() => {
+      panel.hovered = null;
+      panel.els.open.classList.add('hidden');
+    }, delay);
   }
 
   function sync(panel) {
-    const { state, editing, els } = panel;
+    const { state, els } = panel;
     const showText = state === 'result';
 
     els.status.classList.toggle('hidden', showText);
@@ -224,10 +301,7 @@ window.TookTextPanel = (() => {
     else if (state === 'empty') els.message.textContent = T('ocr.empty');
     else if (state === 'error') els.message.textContent = `${T('ocr.failed')}${T(REASONS[panel.reason] || 'ocr.unreadable')}`;
 
-    els.view.classList.toggle('hidden', !showText || editing);
-    els.editor.classList.toggle('hidden', !showText || !editing);
-    els.edit.classList.toggle('hidden', !showText);
-    els.edit.textContent = editing ? T('ocr.doneEditing') : T('ocr.edit');
+    els.text.classList.toggle('hidden', !showText);
     els.copy.classList.toggle('hidden', !showText);
   }
 
@@ -238,16 +312,13 @@ window.TookTextPanel = (() => {
   return {
     create,
     show,
-    isShown,
     place,
     reading,
     setLines,
     failed,
     hasText,
-    isEditing,
     text,
     selectedText,
     selectAll,
-    stopEditing,
   };
 })();
