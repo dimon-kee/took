@@ -50,10 +50,10 @@
       "node_modules/onnxruntime-node/**/*",
       "assets/ocr/**/*"
     ],
-    "extraFiles": [
+    "extraResources": [
       {
         "from": "build/vcruntime",
-        "to": ".",
+        "to": "app.asar.unpacked/node_modules/onnxruntime-node/bin/napi-v6/win32/x64",
         "filter": [
           "*.dll"
         ]

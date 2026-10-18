@@ -2,13 +2,16 @@
 
 /**
  * Copies the Visual C++ runtime DLLs onnxruntime needs into build/vcruntime/,
- * for electron-builder to put beside Took.exe. Electron itself needs none of
- * them and does not ship them, and a clean Windows does not have them — text
- * recognition would not start there. Run by `npm run dist`.
+ * for electron-builder to put beside onnxruntime.dll. Electron itself needs
+ * none of them and does not ship them, and a clean Windows does not have them
+ * — text recognition would not start there. Run by `npm run dist`.
  *
- * They are Microsoft's redistributable files, deployed app-locally; Windows
- * looks in the application's own folder before System32, so these are the
- * ones used even where an older copy is installed.
+ * They are Microsoft's redistributable files, deployed app-locally — and it
+ * has to be beside onnxruntime.dll, not beside Took.exe. Node loads native
+ * modules with LOAD_WITH_ALTERED_SEARCH_PATH, under which Windows looks for a
+ * DLL's imports in that DLL's own folder and then System32, never in the
+ * application's folder. Beside it, these are also the copies used where an
+ * older one is installed.
  *
  *   node tools/collect-vcruntime.js
  */

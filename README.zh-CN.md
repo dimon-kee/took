@@ -283,7 +283,7 @@ src/
 
 这个进程是 utilityProcess,进入「文字」模式时启动,闲置一分钟就结束:加载后它占两百多 MB,Took 本身的内存不变。用 4 个线程,关掉 onnxruntime 的内存池 —— 开着大约快四分之一,内存却是两倍半。崩溃、卡住超过 30 秒、模型加载不了,都会在面板上说明原因并给一个「重试」,不会把取景层卡住。`task check:ocr-process` 专挑这些尴尬的时刻杀掉它。
 
-`npm install` 会从 ModelScope 下载模型到 `assets/ocr/`,用 SHA-256 锁定版本,仓库里不放二进制文件。安装包把模型和 onnxruntime 从 asar 里解包出来 —— onnxruntime 自己打开这些文件,读不了 asar —— 还在 `Took.exe` 旁边放了 onnxruntime.dll 需要的 Visual C++ 运行库:Electron 自己用不到也不带,干净的 Windows 上又没有。`task check:ocr-package` 检查打出来的包,CI 也会跑。
+`npm install` 会从 ModelScope 下载模型到 `assets/ocr/`,用 SHA-256 锁定版本,仓库里不放二进制文件。安装包把模型和 onnxruntime 从 asar 里解包出来 —— onnxruntime 自己打开这些文件,读不了 asar —— 还带上了 onnxruntime.dll 需要的 Visual C++ 运行库:Electron 自己用不到也不带,干净的 Windows 上又没有。它放在 onnxruntime.dll 旁边,而不是 `Took.exe` 旁边:Node 加载原生模块用的是 `LOAD_WITH_ALTERED_SEARCH_PATH`,这种方式下 Windows 只在模块自己的目录和 System32 里找它依赖的 DLL,从不看程序所在的目录。`task check:ocr-package` 检查打出来的包 —— 包括用打包出来的 `Took.exe` 实际加载一次,确认用的就是自带的那几个 —— CI 每次打包都跑。
 
 **更新来自 GitHub Releases**,用 electron-updater。electron-builder 根据 `package.json` 里的 `publish` 往安装版里写 `resources/app-update.yml`,CI 在每次发布时附上 `latest.yml`(版本、文件名、SHA-512)和安装包的 blockmap —— 所以下载下来会先校验才运行,之后的更新也只下载变了的块。`task check:update` 用一个本地的假 GitHub 把更新流程跑一遍;发布之后,`task check:update -- --live` 会下载真正的最新发布,拿它的 `latest.yml` 核对。
 
@@ -308,9 +308,9 @@ src/
 | `check-ocr-process.js` | `task check:ocr-process` | 照 Took 的方式在单独进程里跑识别:预热就启动、认出渲染的一行字、闲置后消失、下次请求又起来;加载中被杀、识别中被杀、超时、没有模型,都要报出原因。顺带报这个进程占多少内存 |
 | `check-ocr-panel.js` | `task check:ocr-panel` | 在真的取景层里操作结果面板,记下它让主进程做的每件事:`Enter` 复制全部并结束 —— 输入法选词时的 `Enter` 和 `Shift + Enter` 不算;`Ctrl + C` 复制选中的部分;`Esc` 和 ✕ 取消;改字后链接重新识别;链接上浮出的「打开」能打开它 |
 | `check-links.js` | `task check:links` | 识别结果里哪些会变成链接 —— 带不带 `http(s)://`、`www.`、邮箱、中文紧贴着、后面跟句号 —— 哪些绝不能:文件名、版本号、代码、`javascript:` 和 `file:`。纯 Node,CI 里也跑 |
-| `check-ocr-package.js` | `task check:ocr-package` | `task dist` 之后跑:运行库和模型都解包了、没带用不上的东西、运行库依赖的 Windows 以外的 DLL 都在包里、从 `app.asar` 里面跑识别能认出字。CI 每次打包都跑 |
+| `check-ocr-package.js` | `task check:ocr-package` | `task dist` 之后跑:运行库和模型都解包了、没带用不上的东西、运行库依赖的 Windows 以外的 DLL 都放在它旁边 —— 而且打包出来的 `Took.exe` 实际加载的就是这几个,不是 System32 里的 —— 从 `app.asar` 里面跑识别能认出字。CI 每次打包都跑 |
 | `fetch-ocr-models.js` | `npm install` | 下载文字识别模型到 `assets/ocr/`,用 SHA-256 锁定,并把识别模型里的字表导出来 |
-| `collect-vcruntime.js` | `task dist` | 复制 onnxruntime 需要的 Visual C++ 运行库 DLL,由安装包放到 `Took.exe` 旁边 |
+| `collect-vcruntime.js` | `task dist` | 复制 onnxruntime 需要的 Visual C++ 运行库 DLL,由安装包放到 onnxruntime.dll 旁边 |
 | `check-stitch.js` | `task check:stitch` | 用答案已知的合成页面、不均匀地滚,去喂长截图的拼接逻辑,每一步的位移和最后的图都逐像素核对。纯 Node,CI 里也跑 |
 | `check-longshot.js` | `task check:longshot` | 用真的覆盖层和实时画面把长截图端到端跑一遍:一个每行像素都写着自己行号的页面在选区下滚动,拼出来的图读回来行号必须一行不断。会在屏幕上盖几秒覆盖层 |
 | `check-update.js` | `task check:update` | 用本地的假 GitHub 测更新:已是最新、发现更新、下载并校验、下载被篡改、服务器出错、自动模式、更新装好后清缓存。`-- --live` 改为下载真正的最新发布来核对 |

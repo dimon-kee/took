@@ -12,7 +12,9 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const { app, BrowserWindow, utilityProcess } = require('electron');
 
 process.on('uncaughtException', (err) => {
@@ -48,7 +50,7 @@ app.whenReady().then(async () => {
     check('找到打包版', false, '先跑 task dist');
   } else {
     files();
-    imports();
+    loadedFrom(imports());
     await recognise();
   }
   console.log(failures ? `\n${failures} 项失败` : '\n全部通过');
@@ -81,16 +83,80 @@ function files() {
   console.log(`        onnxruntime-node 解包后 ${(size(path.join(UNPACKED, 'node_modules', 'onnxruntime-node')) / 2 ** 20).toFixed(1)} MB`);
 }
 
+/**
+ * Every DLL the runtime imports beyond Windows' own must sit beside it. Not
+ * beside Took.exe: Node loads native modules with LOAD_WITH_ALTERED_SEARCH_PATH,
+ * under which Windows looks in the module's own folder and then System32 —
+ * the application's folder is never searched.
+ */
 function imports() {
   console.log('依赖的 DLL');
+  const all = new Set();
   for (const file of ['onnxruntime_binding.node', 'onnxruntime.dll']) {
     // Delay-loaded imports are only looked for when first used — DirectML.dll
     // for GPU inference, which Took never asks for, so it is left out.
     const needed = peImports(path.join(BIN, file)).imports.filter((dll) => !SYSTEM.test(dll));
-    const missing = needed.filter(
-      (dll) => !fs.existsSync(path.join(BIN, dll)) && !fs.existsSync(path.join(APP, dll))
-    );
-    check(`${file} 要的都在：${needed.join(', ')}`, missing.length === 0, missing.length ? `缺 ${missing.join(', ')}` : '');
+    const missing = needed.filter((dll) => !fs.existsSync(path.join(BIN, dll)));
+    check(`${file} 要的都在它旁边：${needed.join(', ')}`, missing.length === 0, missing.length ? `缺 ${missing.join(', ')}` : '');
+    needed.forEach((dll) => all.add(dll.toLowerCase()));
+  }
+  return [...all].filter((dll) => !dll.startsWith('onnxruntime'));
+}
+
+/**
+ * Where the packaged Took.exe actually loads those DLLs from, run as Node:
+ * loading onnxruntime through app.asar as the app does, then listing the
+ * process's own modules. A copy in System32 must not be what gets used — a
+ * clean Windows has none there.
+ */
+function loadedFrom(dlls) {
+  console.log('实际从哪里加载');
+  const script = path.join(os.tmpdir(), `took-ocr-loaded-${process.pid}.js`);
+  fs.writeFileSync(
+    script,
+    `
+    const path = require('path');
+    const resources = path.join(path.dirname(process.execPath), 'resources');
+    const asar = path.join(resources, 'app.asar');
+    (async () => {
+      const ort = require(path.join(asar, 'node_modules', 'onnxruntime-node'));
+      await ort.InferenceSession.create(path.join(resources, 'app.asar.unpacked', 'assets', 'ocr', 'PP-OCRv6_det_tiny.onnx'));
+      const koffi = require(path.join(asar, 'node_modules', 'koffi'));
+      const psapi = koffi.load('psapi.dll');
+      const current = koffi.load('kernel32.dll').func('void* __stdcall GetCurrentProcess()');
+      const list = psapi.func('bool __stdcall EnumProcessModulesEx(void*, _Out_ uint64_t*, uint32, _Out_ uint32_t*, uint32)');
+      const name = psapi.func('uint32 __stdcall GetModuleFileNameExW(void*, uint64, _Out_ uint16_t*, uint32)');
+      const mods = new BigUint64Array(4096);
+      const needed = new Uint32Array(1);
+      list(current(), mods, mods.byteLength, needed, 3);
+      const buf = new Uint16Array(1024);
+      const files = [];
+      for (let i = 0; i < needed[0] / 8; i++) {
+        files.push(String.fromCharCode(...buf.subarray(0, name(current(), mods[i], buf, buf.length))));
+      }
+      console.log(JSON.stringify(files));
+    })().catch((err) => { console.error(err.stack); process.exit(1); });`
+  );
+
+  const run = spawnSync(path.join(APP, 'Took.exe'), [script], {
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    encoding: 'utf8',
+    timeout: 60000,
+  });
+  fs.rmSync(script, { force: true });
+
+  let files = [];
+  try {
+    files = JSON.parse(run.stdout.trim().split('\n').pop());
+  } catch {
+    check('打包版的 Took.exe 能加载识别引擎', false, (run.stderr || run.error || '').toString().trim());
+    return;
+  }
+  const bin = BIN.toLowerCase();
+  for (const dll of dlls) {
+    const file = files.find((f) => path.basename(f).toLowerCase() === dll);
+    const where = file ? path.dirname(file.replace(/^\\\\\?\\/, '')).toLowerCase() : null;
+    check(`${dll} 用的是自带的那份`, where === bin, file || '没加载');
   }
 }
 
