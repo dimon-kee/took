@@ -37,17 +37,28 @@ const REC_BATCH = 6;
 // a character or two.
 const MIN_SCORE = 0.8;
 
+// What tools/fetch-ocr-models.js puts in assets/ocr/.
+const FILES = {
+  det: 'PP-OCRv6_det_tiny.onnx',
+  rec: 'PP-OCRv6_rec_small.onnx',
+  keys: 'PP-OCRv6_rec_small.keys.json',
+};
+
 // ---------------------------------------------------------------------------
 // recogniser
 // ---------------------------------------------------------------------------
 
 /**
- * Load both models. Resolves to `recognize(image)`, which takes RGBA pixels
- * `{ width, height, data }` and resolves to the text, one string per line.
+ * Load both models from `dir`. Resolves to `recognize(image)`, which takes
+ * RGBA pixels `{ width, height, data }` and resolves to the text, one string
+ * per line.
  */
-async function createRecognizer({ detModel, recModel, keys, threads }) {
+async function createRecognizer({ dir, threads }) {
+  const fs = require('fs');
+  const path = require('path');
   const ort = require('onnxruntime-node');
 
+  const keys = JSON.parse(fs.readFileSync(path.join(dir, FILES.keys), 'utf8'));
   const options = {
     executionProviders: ['cpu'],
     intraOpNumThreads: threads,
@@ -56,8 +67,15 @@ async function createRecognizer({ detModel, recModel, keys, threads }) {
     // session lives; without it, memory goes back after each image.
     enableCpuMemArena: false,
   };
-  const det = await ort.InferenceSession.create(detModel, options);
-  const rec = await ort.InferenceSession.create(recModel, options);
+  const det = await ort.InferenceSession.create(path.join(dir, FILES.det), options);
+  const rec = await ort.InferenceSession.create(path.join(dir, FILES.rec), options);
+
+  /** A model's first run costs several times what the rest do; get it over with. */
+  async function warm() {
+    const blank = (dims) => new ort.Tensor('float32', new Float32Array(dims.reduce((a, b) => a * b)), dims);
+    await det.run({ [det.inputNames[0]]: blank([1, 3, 64, 64]) });
+    await rec.run({ [rec.inputNames[0]]: blank([1, 3, REC_HEIGHT, REC_WIDTH]) });
+  }
 
   async function recognize({ width, height, data }) {
     let img = padImage(data, width, height, MARGIN);
@@ -129,6 +147,7 @@ async function createRecognizer({ detModel, recModel, keys, threads }) {
 
   return {
     recognize,
+    warm,
     release: () => Promise.all([det.release(), rec.release()]),
   };
 }
@@ -501,6 +520,7 @@ function mergeLines(pieces) {
 }
 
 module.exports = {
+  FILES,
   createRecognizer,
   padImage,
   resizeBilinear,

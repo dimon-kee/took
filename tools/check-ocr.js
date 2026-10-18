@@ -206,16 +206,12 @@ const VERBOSE = process.argv.includes('-v');
 
   if (!samples.length) {
     console.log('\n（.ocr-samples/ 里没有配了 .txt 的截图，跳过整图识别）');
-  } else if (!fs.existsSync(path.join(MODELS, 'PP-OCRv6_rec_small.onnx'))) {
+  } else if (!Object.values(Pipeline.FILES).every((f) => fs.existsSync(path.join(MODELS, f)))) {
     console.log('\n（assets/ocr/ 里没有模型，跳过整图识别——先跑 npm install）');
   } else {
     console.log('整图识别');
-    const recognizer = await Pipeline.createRecognizer({
-      detModel: path.join(MODELS, 'PP-OCRv6_det_tiny.onnx'),
-      recModel: path.join(MODELS, 'PP-OCRv6_rec_small.onnx'),
-      keys: JSON.parse(fs.readFileSync(path.join(MODELS, 'PP-OCRv6_rec_small.keys.json'), 'utf8')),
-      threads: 4,
-    });
+    const recognizer = await Pipeline.createRecognizer({ dir: MODELS, threads: 4 });
+    await recognizer.warm();
 
     for (const file of samples) {
       const image = readPng(path.join(SAMPLES, file));
