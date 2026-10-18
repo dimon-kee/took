@@ -9,3 +9,6 @@ assets/
 
 # 文字识别的样本截图：检查用，常常有不该公开的内容，只留在本地
 .ocr-samples/
+
+# tools/collect-vcruntime.js 打包时从系统目录复制的 VC++ 运行库
+build/vcruntime/

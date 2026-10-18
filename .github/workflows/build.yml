@@ -34,6 +34,15 @@ jobs:
           key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
           restore-keys: electron-${{ runner.os }}-
 
+      # The text-recognition models (~23 MB) come from ModelScope on install.
+      # Restored here, the install's SHA-256 check finds them and skips the
+      # download; the key changes whenever the pinned models do.
+      - name: Cache OCR models
+        uses: actions/cache@v4
+        with:
+          path: assets/ocr
+          key: ocr-models-${{ hashFiles('tools/fetch-ocr-models.js') }}
+
       - run: npm ci
 
       # Renderer code is plain script tags with no build step, so nothing else
@@ -56,7 +65,21 @@ jobs:
       - name: Scrolling-screenshot stitcher
         run: node tools/check-stitch.js
 
+      # Each recognition step against RapidOCR's answers. The screenshots it
+      # also reads live outside git, so CI runs the steps only.
+      - name: Text recognition
+        run: node tools/check-ocr.js
+
+      - name: Links in recognised text
+        run: node tools/check-links.js
+
       - run: npm run dist
+
+      # What the installer carries: the runtime and models unpacked, the C++
+      # runtime beside Took.exe, and recognition working from inside app.asar.
+      # A release that cannot read text never gets published.
+      - name: Packaged text recognition
+        run: npx electron tools/check-ocr-package.js
 
       - uses: actions/upload-artifact@v4
         with:

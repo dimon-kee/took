@@ -145,6 +145,11 @@ tasks:
     cmds:
       - cmd: node tools/check-links.js
 
+  check:ocr-package:
+    desc: After task dist, check text recognition is packaged whole and runs from inside app.asar
+    cmds:
+      - cmd: npx electron tools/check-ocr-package.js {{.CLI_ARGS}}
+
   check:longshot:
     desc: Run a scrolling screenshot end to end through the real overlay and a live stream
     cmds:

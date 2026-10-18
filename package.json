@@ -9,7 +9,7 @@
     "postinstall": "node tools/make-icons.js && node tools/fetch-ocr-models.js",
     "start": "electron .",
     "dev": "electron . --dev",
-    "dist": "electron-builder --win --publish never"
+    "dist": "node tools/collect-vcruntime.js && electron-builder --win --publish never"
   },
   "devDependencies": {
     "electron": "^44.4.3",
@@ -37,10 +37,27 @@
       "assets/**/*",
       "node_modules/jsqr/**/*",
       "node_modules/gifenc/**/*",
-      "node_modules/koffi/**/*"
+      "node_modules/koffi/**/*",
+      "!node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}{,/**/*}",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/arm64{,/**/*}",
+      "!node_modules/onnxruntime-node/bin/napi-v6/win32/x64/{DirectML,dxcompiler,dxil}.dll",
+      "!node_modules/onnxruntime-node/{lib,script}{,/**/*}",
+      "!node_modules/onnxruntime-common/{lib,dist/esm}{,/**/*}",
+      "!node_modules/onnxruntime-{node,common}/**/*.{map,ts}"
     ],
     "asarUnpack": [
-      "node_modules/koffi/**/*"
+      "node_modules/koffi/**/*",
+      "node_modules/onnxruntime-node/**/*",
+      "assets/ocr/**/*"
+    ],
+    "extraFiles": [
+      {
+        "from": "build/vcruntime",
+        "to": ".",
+        "filter": [
+          "*.dll"
+        ]
+      }
     ],
     "win": {
       "icon": "assets/icon.png",
