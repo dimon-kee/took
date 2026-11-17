@@ -213,7 +213,7 @@ Settings live in `%APPDATA%\Took\settings.json`. A corrupt or missing file falls
 
 ## Uninstalling
 
-Uninstall from Windows Settings → Apps as usual. It removes everything Took keeps on the machine: the program and its shortcuts, `%APPDATA%Took` (settings and caches), the updater's cache in `%LOCALAPPDATA%	ook-updater`, the Start with Windows entry, and any recording still waiting in the temp folder. `PicturesTook` goes only if it is empty — your captures are never touched.
+Uninstall from Windows Settings → Apps as usual. It removes everything Took keeps on the machine: the program and its shortcuts, `%APPDATA%\Took` (settings and caches), the updater's cache in `%LOCALAPPDATA%\took-updater`, the Start with Windows entry, and any recording still waiting in the temp folder. `Pictures\Took` goes only if it is empty — your captures are never touched.
 
 An update is not an uninstall: it replaces the program and keeps your settings and start-up choice.
 
@@ -287,7 +287,7 @@ The process is a utilityProcess, started when Text mode opens and ended after a 
 
 **Updates come from GitHub Releases** through electron-updater. electron-builder writes `resources/app-update.yml` into the installed app from the `publish` block in `package.json`, and CI attaches `latest.yml` (version, file name, SHA-512) and the installer's blockmap to every release — so a download is verified before it runs, and later updates fetch only the blocks that changed. `task check:update` runs the updater against a local stand-in for GitHub; after publishing, `task check:update -- --live` downloads the newest real release and checks it against its `latest.yml`.
 
-**Uninstalling leaves nothing behind.** electron-builder's uninstaller removes the program and, with `deleteAppDataOnUninstall`, `%APPDATA%Took` — but not what an app keeps anywhere else. `build/installer.nsh` adds the rest: the updater's cache, the Run entry, parked recordings, an empty save folder. None of it runs during an update. `task check:install` installs, updates from an older release and uninstalls for real, then checks nothing is left; anything of yours it has to disturb is backed up and put back.
+**Uninstalling leaves nothing behind.** electron-builder's uninstaller removes the program and, with `deleteAppDataOnUninstall`, `%APPDATA%\Took` — but not what an app keeps anywhere else. `build/installer.nsh` adds the rest: the updater's cache, the Run entry, parked recordings, an empty save folder. None of it runs during an update. `task check:install` installs, updates from an older release and uninstalls for real, then checks nothing is left; anything of yours it has to disturb is backed up and put back.
 
 **The overlay is a tool window, and leaves the capture while it scrolls.** Chromium — every browser, every Electron app — stops painting a window it believes is fully covered, and a topmost screen-sized window counts unless it is a tool window; without that, the page being scrolled freezes. During a scrolling screenshot the overlay is also excluded from screen capture (`setContentProtection`), so its dimming and panel never reach the frames, and it lets the mouse through only inside the region.
 
