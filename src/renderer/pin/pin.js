@@ -11,7 +11,11 @@
   const close = () => window.took.close();
 
   document.getElementById('act-copy').addEventListener('click', copy);
-  document.getElementById('act-save').addEventListener('click', save);
+  // Saved straight into the folder, the second click of a double click would
+  // be a second copy. (A double click anywhere else closes the pin.)
+  document.getElementById('act-save').addEventListener('click', (e) => {
+    if (e.detail < 2) save();
+  });
   document.getElementById('act-close').addEventListener('click', close);
 
   document.addEventListener('dblclick', close);
@@ -20,7 +24,9 @@
     const mod = e.ctrlKey || e.metaKey;
     if (e.key === 'Escape') close();
     else if (mod && (e.key === 'c' || e.key === 'C')) copy();
-    else if (mod && (e.key === 's' || e.key === 'S')) save();
+    // Saving straight into the folder has no dialog to stop a held-down key:
+    // every repeat would be another copy of the pin.
+    else if (mod && (e.key === 's' || e.key === 'S') && !e.repeat) save();
   });
 
   // Wheel fades the pin so you can trace over what is underneath it.

@@ -6,6 +6,8 @@ const T = (key, vars) => window.i18n.t(key, vars);
 (() => {
   const els = {
     saveDir: document.getElementById('save-dir'),
+    saveHint: document.getElementById('save-hint'),
+    saveMode: document.getElementById('save-mode'),
     langRow: document.getElementById('lang-row'),
     autoLaunch: document.getElementById('auto-launch'),
     version: document.getElementById('app-version'),
@@ -56,6 +58,12 @@ const T = (key, vars) => window.i18n.t(key, vars);
     });
     els.saveDir.value = current.saveDir || defaults.saveDirLabel;
 
+    const ask = current.saveMode === 'ask';
+    els.saveHint.textContent = T(ask ? 'settings.saveAskHint' : 'settings.saveDirectHint');
+    els.saveMode.querySelectorAll('[data-mode]').forEach((btn) => {
+      btn.classList.toggle('is-on', btn.dataset.mode === (ask ? 'ask' : 'direct'));
+    });
+
     els.langRow.querySelectorAll('.lang').forEach((btn) => {
       btn.classList.toggle('is-on', btn.dataset.lang === current.language);
     });
@@ -100,7 +108,7 @@ const T = (key, vars) => window.i18n.t(key, vars);
 
     els.langRow.innerHTML = languages
       .map(
-        (l) => `<button class="lang rec-radio" data-lang="${l.code}" type="button">
+        (l) => `<button class="lang radio rec-radio" data-lang="${l.code}" type="button">
             <i class="dot"></i><span>${l.label}</span>
           </button>`
       )
@@ -142,6 +150,9 @@ const T = (key, vars) => window.i18n.t(key, vars);
 
     document.getElementById('btn-open').addEventListener('click', () => window.took.openDir());
     document.getElementById('btn-reset-dir').addEventListener('click', () => change(() => (current.saveDir = null)));
+    els.saveMode.querySelectorAll('[data-mode]').forEach((btn) => {
+      btn.addEventListener('click', () => change(() => (current.saveMode = btn.dataset.mode)));
+    });
 
     document.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('blur', stopListening);

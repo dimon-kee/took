@@ -54,7 +54,8 @@
 
       <section>
         <h2 data-i18n="settings.saveLocation"></h2>
-        <p class="hint" data-i18n="settings.saveLocationHint"></p>
+        <!-- Says what the chosen mode below does; filled in by settings.js. -->
+        <p class="hint" id="save-hint"></p>
 
         <div class="row path-row">
           <input type="text" id="save-dir" spellcheck="false" readonly />
@@ -62,6 +63,18 @@
           <button class="ghost" id="btn-open" type="button" data-i18n="settings.open"></button>
         </div>
         <button class="link" id="btn-reset-dir" type="button" data-i18n="settings.resetDir"></button>
+
+        <div class="row top save-mode-row">
+          <label data-i18n="settings.saveModeLabel"></label>
+          <div class="options stacked" id="save-mode">
+            <button class="radio" data-mode="direct" type="button">
+              <i class="dot"></i><span data-i18n="settings.saveDirect"></span>
+            </button>
+            <button class="radio" data-mode="ask" type="button">
+              <i class="dot"></i><span data-i18n="settings.saveAsk"></span>
+            </button>
+          </div>
+        </div>
       </section>
 
       <section>

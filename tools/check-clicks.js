@@ -216,6 +216,16 @@ async function settingsWindow() {
   check('被占用的快捷键退回原来的', (await capture()) === 'Ctrl + Alt + K', await capture());
   check('并在底部说明', refused.warn && refused.text === T('settings.conflict', { names: T('settings.capture') }), refused.text);
 
+  // How to save: the choice saves at once, and the hint over the folder follows it.
+  await page.run(`document.getElementById('save-mode').scrollIntoView({ block: 'center' }); true`);
+  const hint = () => page.run(`document.getElementById('save-hint').textContent`);
+  check('默认直接保存，说明也这么写', (await hint()) === T('settings.saveDirectHint'), await hint());
+  await page.clickOn('[data-mode="ask"] span');
+  check('点「每次都问」马上保存', saves[saves.length - 1].saveMode === 'ask', saves[saves.length - 1].saveMode);
+  check('说明跟着换', (await hint()) === T('settings.saveAskHint'), await hint());
+  await page.clickOn('[data-mode="direct"] .dot');
+  check('点回「直接保存」也马上保存', saves[saves.length - 1].saveMode === 'direct', saves[saves.length - 1].saveMode);
+
   win.destroy();
 }
 

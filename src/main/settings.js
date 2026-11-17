@@ -23,11 +23,21 @@ const DEFAULTS = {
   },
   // null means "wherever saveDir() lands", i.e. Pictures/Took
   saveDir: null,
+  // 'direct' writes captures straight into saveDir; 'ask' shows a save dialog
+  // every time. Direct is what a set save location suggests, and it is what was
+  // asked for once the dialog turned out to be the only way to save.
+  saveMode: 'direct',
   // Check, download and install updates without being asked.
   autoUpdate: true,
 };
 
+const SAVE_MODES = ['direct', 'ask'];
+
 let cache = null;
+// The file is there but could not be read — a hand edit with a typo, say. Only
+// a change made in the settings window may write over it, not a save that
+// merely went somewhere.
+let unreadable = false;
 
 function file() {
   return path.join(app.getPath('userData'), 'settings.json');
@@ -41,18 +51,30 @@ function load() {
     cache = {
       language: normalizeLanguage(raw.language),
       shortcuts: { ...DEFAULTS.shortcuts, ...(raw.shortcuts || {}) },
-      saveDir: typeof raw.saveDir === 'string' && raw.saveDir ? raw.saveDir : null,
+      saveDir: nonEmpty(raw.saveDir),
+      saveMode: SAVE_MODES.includes(raw.saveMode) ? raw.saveMode : DEFAULTS.saveMode,
       autoUpdate: typeof raw.autoUpdate === 'boolean' ? raw.autoUpdate : DEFAULTS.autoUpdate,
+      // Not a preference: the folder the last save went into, so a save dialog
+      // can open there. Kept out of get(), so the settings window never sees
+      // it — and never sends back a stale copy.
+      lastSaveDir: nonEmpty(raw.lastSaveDir),
     };
-  } catch {
+  } catch (err) {
     // Missing or corrupt — fall back to defaults rather than refusing to start.
-    cache = structuredClone(DEFAULTS);
+    cache = { ...structuredClone(DEFAULTS), lastSaveDir: null };
+    unreadable = err.code !== 'ENOENT';
   }
   return cache;
 }
 
+function nonEmpty(value) {
+  return typeof value === 'string' && value ? value : null;
+}
+
+/** The preferences, as the settings window shows them. */
 function get() {
-  return structuredClone(load());
+  const { lastSaveDir, ...prefs } = load();
+  return structuredClone(prefs);
 }
 
 function set(patch) {
@@ -60,16 +82,28 @@ function set(patch) {
 
   if (patch.language) next.language = normalizeLanguage(patch.language);
   if (patch.shortcuts) Object.assign(next.shortcuts, patch.shortcuts);
-  if ('saveDir' in patch) next.saveDir = patch.saveDir || null;
+  if ('saveDir' in patch) {
+    const dir = patch.saveDir || null;
+    // Choosing a save location says where saving should start from now on —
+    // not wherever the last save happened to go.
+    if (dir !== next.saveDir) next.lastSaveDir = null;
+    next.saveDir = dir;
+  }
+  if (SAVE_MODES.includes(patch.saveMode)) next.saveMode = patch.saveMode;
   if (typeof patch.autoUpdate === 'boolean') next.autoUpdate = patch.autoUpdate;
 
+  persist();
+  return get();
+}
+
+function persist() {
   try {
     fs.mkdirSync(path.dirname(file()), { recursive: true });
-    fs.writeFileSync(file(), JSON.stringify(next, null, 2), 'utf8');
+    fs.writeFileSync(file(), JSON.stringify(load(), null, 2), 'utf8');
+    unreadable = false;
   } catch (err) {
     console.error('[took] 写入设置失败:', err);
   }
-  return get();
 }
 
 /** Where captures land. Falls back to 图片/Took, then the home directory. */
@@ -85,7 +119,11 @@ function saveDir() {
       console.warn('[took] 保存目录不可用，退回默认:', err.message);
     }
   }
+  return defaultSaveDir();
+}
 
+/** 图片/Took, or the home directory should even that not be possible. */
+function defaultSaveDir() {
   try {
     const dir = path.join(app.getPath('pictures'), 'Took');
     fs.mkdirSync(dir, { recursive: true });
@@ -93,6 +131,31 @@ function saveDir() {
   } catch {
     return os.homedir();
   }
+}
+
+/** Remember the folder a save just went into, across restarts. */
+function rememberSaveDir(dir) {
+  const next = load();
+  if (!dir || next.lastSaveDir === dir) return;
+  next.lastSaveDir = dir;
+  // Still remembered until Took quits, just not written over a broken file.
+  if (!unreadable) persist();
+}
+
+/**
+ * Where a save dialog opens: the folder the last save went into, while it is
+ * still there; otherwise the save location.
+ */
+function dialogDir() {
+  const last = load().lastSaveDir;
+  if (last) {
+    try {
+      if (fs.statSync(last).isDirectory()) return last;
+    } catch {
+      // Gone since — renamed, deleted, drive unplugged.
+    }
+  }
+  return saveDir();
 }
 
 /**
@@ -137,4 +200,16 @@ function firstLaunch() {
   return true;
 }
 
-module.exports = { DEFAULTS, get, set, saveDir, checkWritable, refusedShortcuts, file, firstLaunch };
+module.exports = {
+  DEFAULTS,
+  get,
+  set,
+  saveDir,
+  defaultSaveDir,
+  dialogDir,
+  rememberSaveDir,
+  checkWritable,
+  refusedShortcuts,
+  file,
+  firstLaunch,
+};

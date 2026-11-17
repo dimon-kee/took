@@ -82,6 +82,21 @@ app.whenReady().then(async () => {
        { code: 'KeyJ', ctrlKey: true, altKey: true, bubbles: true }));`
   );
   await shoot(win, 'settings-h-saved', `document.getElementById('auto-launch').click();`);
+  // How to save: straight into the folder (the default), or asking each time —
+  // the hint above the folder follows the choice.
+  await shoot(
+    win,
+    'settings-i-save-direct',
+    `document.querySelector('[data-mode="direct"]').click();
+     document.getElementById('save-mode').scrollIntoView({ block: 'end' });`
+  );
+  await shoot(
+    win,
+    'settings-j-save-ask',
+    `document.querySelector('[data-mode="ask"]').click();
+     document.getElementById('save-mode').scrollIntoView({ block: 'end' });`
+  );
+  await win.webContents.executeJavaScript(`document.querySelector('main').scrollTop = 0; true`);
 
   // The updates section in each state main can report.
   for (const [name, state] of [
