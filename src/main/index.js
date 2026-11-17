@@ -949,7 +949,9 @@ ipcMain.handle('settings:save', (event, next) => {
   const previous = settings.get();
   const effective = () => ({ settings: settings.get(), autoLaunch: autoLaunch.enabled() });
 
-  if (next.saveDir) {
+  // The window sends every setting each time. Only a folder that changed is
+  // checked: one that has gone offline since must not block every other change.
+  if (next.saveDir && next.saveDir !== previous.saveDir) {
     const check = settings.checkWritable(next.saveDir);
     if (!check.ok) return { ok: false, message: t('settings.dirNotWritable', { message: check.message }), ...effective() };
   }

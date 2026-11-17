@@ -293,17 +293,15 @@ const T = (key, vars) => window.i18n.t(key, vars);
       return;
     }
 
-    // Refused: show what is actually in effect again, and why.
+    // Refused: show what is actually in effect again — all of it, since the
+    // refused save carried every setting, not just the one that failed — and why.
+    current = { ...result.settings, autoLaunch: result.autoLaunch };
+    render();
     if (result.conflicts && result.conflicts.length) {
-      current.shortcuts = result.settings.shortcuts;
-      render();
       const names = result.conflicts.map((k) => T(LABELS[k] || k)).join(T('settings.listSeparator'));
       showError(T('settings.conflict', { names }));
       return;
     }
-
-    current.saveDir = result.settings.saveDir;
-    render();
     showError(result.message || T('settings.saveFailed'));
   }
 
