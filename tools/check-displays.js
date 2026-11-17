@@ -74,6 +74,14 @@ ipcMain.on('overlay:release', () => {
   win.webContents.send('overlay:take-over', { x: cursor.x - b.x, y: cursor.y - b.y });
   win.focus();
 });
+// As src/main/index.js: a mode picked on one display reaches the others.
+ipcMain.on('overlay:mode', (event, mode) => {
+  overlays.forEach((win) => {
+    if (!win.isDestroyed() && win.webContents.id !== event.sender.id) {
+      win.webContents.send('overlay:mode', mode);
+    }
+  });
+});
 ipcMain.on('overlay:cancel', () => {});
 ipcMain.handle('overlay:source-id', () => null);
 ipcMain.handle('overlay:fallback-shot', () => null);
@@ -157,6 +165,24 @@ async function run() {
   check('屏幕 2 的放大镜收起来', !lb.visible, lb.visible ? `还在：${lb.transform}，${lb.coord}` : '');
   check('键盘回到屏幕 1', a.isFocused());
 
+  console.log('\n在屏幕 1 选录屏，走到屏幕 2 选文字，再走回来');
+  await pickMode(a, 'record');
+  await at(1, 2);
+  await at(1, 80);
+  await wait(150);
+  let mb = await modes(b);
+  check('屏幕 2 也是录屏', mb.mode === 'record' && mb.lit === 'record', `${mb.mode}，模式栏亮的是 ${mb.lit}`);
+  await pickMode(b, 'text');
+  await at(0, SIZE.width - 2);
+  await at(0, SIZE.width - 80);
+  await wait(150);
+  const ma = await modes(a);
+  check('回到屏幕 1 是文字', ma.mode === 'text' && ma.lit === 'text', `${ma.mode}，模式栏亮的是 ${ma.lit}`);
+  // The rest of the walk is about capture.
+  await pickMode(a, 'capture');
+  mb = await modes(b);
+  check('屏幕 2 跟着回到截图', mb.mode === 'capture', mb.mode);
+
   console.log('\n在屏幕 1 选好区域，再走到屏幕 2');
   // A click takes the whole display it is framed on; the toolbar comes up.
   mouse_event(MOUSE_LEFTDOWN, 0, 0, 0, 0);
@@ -183,6 +209,20 @@ async function run() {
 
 function toolbarShown(win) {
   return win.webContents.executeJavaScript(`!document.getElementById('toolbar').classList.contains('hidden')`);
+}
+
+/** Click a mode on the display's mode bar, as the user would. */
+async function pickMode(win, mode) {
+  await win.webContents.executeJavaScript(`document.querySelector('.mode[data-mode="${mode}"]').click()`);
+  await wait(150); // for the other display to hear of it
+}
+
+/** The mode the overlay is in, and the one its mode bar shows as picked. */
+function modes(win) {
+  return win.webContents.executeJavaScript(`(() => {
+    const lit = document.querySelector('.mode.active');
+    return { mode: window.__tookDebug().mode, lit: lit ? lit.dataset.mode : null };
+  })()`);
 }
 
 /** How many of the display's four corners the dimming still covers. */

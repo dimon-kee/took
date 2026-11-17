@@ -251,6 +251,19 @@
     resetSelection();
   }
 
+  // The mode was picked on another display. This one only follows: it holds
+  // no selection, so there is nothing to read or film, and the webcam is the
+  // other display's to show or hide.
+  window.took.onMode((mode) => {
+    if (mode === S.mode) return;
+    S.mode = mode;
+    // Still setting up: init draws everything from S.mode once it is done.
+    if (!S.ready) return;
+    S.tool = null;
+    syncToolbar();
+    syncModeBar();
+  });
+
   // Where the pointer is during a scrolling screenshot, streamed from main.
   window.took.onPointer((p) => {
     if (longShot) LongShot.pointer(longShot, p);
@@ -665,6 +678,7 @@
     if (mode === S.mode) return;
     S.mode = mode;
     S.tool = null;
+    window.took.setMode(mode);
     syncToolbar();
     syncModeBar();
     syncWebcam();
