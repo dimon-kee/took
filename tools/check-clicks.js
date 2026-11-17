@@ -212,6 +212,8 @@ async function settingsWindow() {
 
   await page.clickOn('#hk-capture');
   await page.keys('J', ['control', 'alt']);
+  // Until the refusal is back, rather than a fixed wait a busy machine outruns.
+  for (let i = 0; i < 30 && !(await status()).warn; i++) await wait(100);
   const refused = await status();
   check('被占用的快捷键退回原来的', (await capture()) === 'Ctrl + Alt + K', await capture());
   check('并在底部说明', refused.warn && refused.text === T('settings.conflict', { names: T('settings.capture') }), refused.text);
