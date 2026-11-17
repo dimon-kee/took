@@ -41,6 +41,9 @@ const OUT = process.argv[2] || path.join(app.getPath('temp'), 'took-preview');
 const W = 1280;
 const H = 720;
 
+/** States whose readout flagged something: a bar off screen or overlapping. */
+const flagged = [];
+
 app.whenReady().then(async () => {
   fs.mkdirSync(OUT, { recursive: true });
   ocr = createOcr({
@@ -116,7 +119,15 @@ app.whenReady().then(async () => {
     fire('mouseup', 421, 301);
   `);
 
+  // The whole display reaches under the taskbar: the colour bar opens above
+  // the toolbar, both clear of the taskbar and of each other.
+  await shoot(win, 'a2b-fullscreen-subbar', `
+    click('rect');
+  `);
+
+  // The first right-click puts the rectangle tool down, the second the frame.
   await shoot(win, 'a3-back-to-idle', `
+    menu(420, 300);
     menu(420, 300);
     fire('mousemove', 420, 300);
   `);
@@ -241,6 +252,11 @@ app.whenReady().then(async () => {
 
   ocr.stop();
   console.log(`\n预览图写在: ${OUT}`);
+  if (flagged.length) {
+    console.log(`有 ${flagged.length} 个状态不对: ${flagged.join(', ')}`);
+    app.exit(1);
+    return;
+  }
   app.exit(0);
 });
 
@@ -278,7 +294,16 @@ async function shoot(win, name, script, settled) {
         ocr: d.ocr && d.mode === 'text' ? d.ocr.state + ' ' + JSON.stringify(d.ocr.text) : null,
         bar: !document.getElementById('modebar').classList.contains('hidden'),
         toolbar: describeBar(document.getElementById('toolbar')),
+        subbar: document.getElementById('subbar').classList.contains('hidden')
+          ? null
+          : describeBar(document.getElementById('subbar')) + (barsOverlap() ? ' 压住工具栏!' : ''),
       };
+
+      function barsOverlap() {
+        const a = document.getElementById('toolbar').getBoundingClientRect();
+        const b = document.getElementById('subbar').getBoundingClientRect();
+        return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      }
 
       function describeBar(el) {
         if (el.classList.contains('hidden')) return '隐藏';
@@ -292,11 +317,12 @@ async function shoot(win, name, script, settled) {
       }
     })()`
   );
-  console.log(
+  const line =
     `      mode=${dump.mode} tool=${dump.tool} shapes=${dump.shapes}` +
-      ` modebar=${dump.bar ? '显示' : '隐藏'} 工具栏=${dump.toolbar}` +
-      (dump.ocr ? `\n      文字=${dump.ocr}` : '')
-  );
+    ` modebar=${dump.bar ? '显示' : '隐藏'} 工具栏=${dump.toolbar}` +
+    (dump.subbar ? ` 颜色栏=${dump.subbar}` : '');
+  if (line.includes('!')) flagged.push(name);
+  console.log(line + (dump.ocr ? `\n      文字=${dump.ocr}` : ''));
 
   // A change that came back over IPC — a recognition result — can sit
   // unpainted while nothing else is moving; ask for a fresh frame first.

@@ -904,14 +904,21 @@
     const waBottom = wa.y + wa.height;
     const stackH = th + sh; // sh already carries its 6px gap
 
+    // The toolbar and the subbar move as one stack: `top` is the stack's top
+    // edge, and `subUp` puts the subbar above the toolbar instead of below.
+    // Clamping each bar on its own pushed both against the taskbar, one on
+    // top of the other, and the subbar hid the tools.
     let left;
     let top;
-    let stackDown = true;
+    let subUp = false;
 
     if (S.toolbarPos) {
       left = S.toolbarPos.x;
       top = S.toolbarPos.y;
-      if (top + stackH > waBottom - 6) stackDown = false;
+      if (top + stackH > waBottom - 6) {
+        subUp = true;
+        top -= sh;
+      }
     } else {
       const below = y + h + 8;
       const above = y - stackH - 8;
@@ -920,28 +927,28 @@
         top = below;
         left = x + w - tw;
       } else if (above >= wa.y + 6) {
-        top = above + sh; // toolbar sits under the subbar when flipped up
-        stackDown = false;
+        top = above;
+        subUp = true; // the toolbar stays against the selection
         left = x + w - tw;
       } else {
         // No room on either side — tuck the stack into the selection's own
-        // bottom-right corner, which is where a full-screen grab lands.
-        top = y + h - stackH - 10;
+        // bottom-right corner, which is where a full-screen grab lands. The
+        // subbar opens upwards so the toolbar does not jump when it appears.
+        top = Math.min(y + h, waBottom) - stackH - 10;
+        subUp = true;
         left = x + w - tw - 10;
       }
     }
 
-    top = clamp(top, wa.y + 6, Math.max(wa.y + 6, waBottom - th - 6));
+    top = clamp(top, wa.y + 6, Math.max(wa.y + 6, waBottom - stackH - 6));
     left = clamp(left, wa.x + 6, wa.x + wa.width - tw - 6);
 
-    els.toolbar.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+    const barTop = subUp ? top + sh : top;
+    els.toolbar.style.transform = `translate(${Math.round(left)}px, ${Math.round(barTop)}px)`;
 
     if (sh) {
-      const subH = els.subbar.offsetHeight;
-      const subTop = stackDown ? top + th + 6 : top - subH - 6;
-      els.subbar.style.transform = `translate(${Math.round(left)}px, ${Math.round(
-        clamp(subTop, wa.y + 6, waBottom - subH - 6)
-      )}px)`;
+      const subTop = subUp ? top : top + th + 6;
+      els.subbar.style.transform = `translate(${Math.round(left)}px, ${Math.round(subTop)}px)`;
     }
   }
 
