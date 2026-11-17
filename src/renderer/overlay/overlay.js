@@ -972,10 +972,12 @@
     // takes clicks, and that stops them before they get here.
     if (e.button !== 0 || !S.ready || S.phase === 'long') return;
     if (!S.active) {
-      // A click on a non-owning display restarts the selection there.
+      // A click on a non-owning display restarts the selection there, framed
+      // whole like the display that opened: a bare click grabs all of it.
       S.active = true;
       window.took.claim();
       syncModeBar();
+      preselectFullScreen();
     }
 
     const p = point(e);
@@ -1021,10 +1023,13 @@
       return;
     }
 
-    // Outside the box with no tool: draw a fresh selection.
+    // Outside the box with no tool: start over. A drag draws a fresh
+    // selection; a bare click grabs the full screen. Until the pointer really
+    // travels the old box stays as it is — flashing the whole display bright
+    // on every press would be noise before a drag.
     S.phase = 'idle';
     S.toolbarPos = null;
-    S.drag = { kind: 'select', ox: p.x, oy: p.y, moved: false };
+    S.drag = { kind: 'select', ox: p.x, oy: p.y, moved: false, hold: true };
     hideChrome();
     markDirty('mask', 'live');
   });
@@ -1052,10 +1057,10 @@
       case 'select': {
         if (Math.abs(p.x - d.ox) > CLICK_SLOP || Math.abs(p.y - d.oy) > CLICK_SLOP) d.moved = true;
 
-        // Hold the full-screen default until the pointer really travels —
-        // otherwise a shaky click collapses it to a speck and the screen
-        // flashes dim on the way back.
-        if (!d.moved && S.preselect) {
+        // Hold the full-screen default, or the box a press outside it left,
+        // until the pointer really travels — otherwise a shaky click
+        // collapses it to a speck and the screen flashes dim on the way back.
+        if (!d.moved && (S.preselect || d.hold)) {
           drawMagnifier();
           break;
         }
@@ -1180,7 +1185,10 @@
     layoutBars();
     syncWebcam();
     setCursorStyle();
-    markDirty('live');
+    // A bare click turns the selection into the whole display without moving
+    // the pointer, so nothing has redrawn the dimming or the annotations for
+    // it yet.
+    markDirty('mask', 'shapes', 'live');
     if (S.mode === 'text') runOcr();
   }
 

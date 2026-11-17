@@ -170,10 +170,29 @@ async function run() {
   check('选区还在屏幕 1，工具栏也在', await toolbarShown(a));
   check('屏幕 2 不抢：没有放大镜', !lb.visible, lb.visible ? lb.coord : '');
   check('键盘留在屏幕 1', a.isFocused());
+
+  console.log('\n在屏幕 2 单击，选区搬到屏幕 2');
+  mouse_event(MOUSE_LEFTDOWN, 0, 0, 0, 0);
+  mouse_event(MOUSE_LEFTUP, 0, 0, 0, 0);
+  await wait(200);
+  check('屏幕 2 选好了，工具栏出来', await toolbarShown(b));
+  check('屏幕 1 交出选区', !(await toolbarShown(a)));
+  const dimmed = await dimmedCorners(b);
+  check('整块屏幕 2 都亮着', dimmed === 0, dimmed ? `还有 ${dimmed} 个角盖着遮罩` : '');
 }
 
 function toolbarShown(win) {
   return win.webContents.executeJavaScript(`!document.getElementById('toolbar').classList.contains('hidden')`);
+}
+
+/** How many of the display's four corners the dimming still covers. */
+function dimmedCorners(win) {
+  return win.webContents.executeJavaScript(`(() => {
+    const c = document.getElementById('mask');
+    const g = c.getContext('2d');
+    const corners = [[2, 2], [c.width - 3, 2], [2, c.height - 3], [c.width - 3, c.height - 3]];
+    return corners.filter(([x, y]) => g.getImageData(x, y, 1, 1).data[3] > 0).length;
+  })()`);
 }
 
 /** One display's worth of shot, its frozen frame a single colour. */
