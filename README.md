@@ -90,7 +90,7 @@ Picking any drawing tool opens a second row: three stroke widths and seven colou
 | Key | Action |
 | --- | --- |
 | `Enter` | Done — copy to clipboard |
-| `Ctrl + S` | Save as PNG |
+| `Ctrl + S` | Save as PNG (see *Save location* in Settings) |
 | `Ctrl + Z` | Undo the last stroke |
 | `Ctrl + C` | Copy to clipboard |
 | `Esc` | Drop the current tool; again to cancel the capture |
@@ -179,7 +179,7 @@ Space pauses and resumes, `Enter` finishes, `Esc` discards. One hour is the cap,
 
 ### The editor window
 
-When you stop, an *Edit recording* window opens: player, scrubber, *Save* and *Copy to clipboard*. The file waits in a temp folder until you decide where it goes, and is deleted once the next recording finishes or Took quits.
+When you stop, an *Edit recording* window opens: player, scrubber, *Save* and *Copy to clipboard*. The file waits in a temp folder until you save it — straight into the save location, or wherever you choose (see *Save location* under Settings) — and is deleted once the next recording finishes or Took quits.
 
 Copying puts the clip on the clipboard as a file reference, MP4 and GIF alike, so it pastes as the file itself into Explorer and chat apps.
 
@@ -205,7 +205,9 @@ Click the tray icon, or Tray menu → Settings…. Every change is saved as you 
 
 **Hotkeys** — click the field and press the combination you want. At least one modifier is required, otherwise that key would be swallowed system-wide. If a combination is already taken by another program it is refused on the spot and **the old one stays** — you never end up with a hotkey that does nothing. One that another program takes later stops working, but never stops the rest of the settings from saving. Each row has a reset link.
 
-**Save location** — where the save dialogs for screenshots and recordings start; the Open button beside it jumps straight there. Defaults to `Pictures/Took/`. A new directory is probe-written before it is accepted, so an unwritable path is rejected on the spot rather than when you try to save a capture.
+**Save location** — where screenshots and recordings are saved; the Open button beside it jumps straight there. Defaults to `Pictures/Took/`. A new directory is probe-written before it is accepted, so an unwritable path is rejected on the spot rather than when you try to save a capture.
+
+*When saving* picks how. **Save straight into this folder** (the default) writes the file there without a dialog, as `Screenshot_<date>_<time>.png` — or `… (2).png` if that name is taken, never over an existing file. A tray notice says where a screenshot went; click it to show the file in Explorer. A saved recording is shown in Explorer straight away. **Ask where to save each time** shows a save dialog instead, opening in the folder you last saved to (remembered across restarts), or in the save location if that folder is gone or you have just picked a new one. When saving straight finds the folder unwritable after all, the dialog opens instead, so the capture is not lost.
 
 Settings live in `%APPDATA%\Took\settings.json`. A corrupt or missing file falls back to defaults instead of failing to start. If the directory later disappears — external drive unplugged, folder deleted — captures fall back to `Pictures/Took` rather than being lost.
 
@@ -301,7 +303,7 @@ Everything under `tools/` has a matching task:
 | `preview-settings.js` | `task preview` | Renders the settings window, including the key-capture and hotkey-clash states |
 | `check-i18n.js` | `task check:i18n` | Both languages define the same keys, every referenced key exists, none are dead, and no user-facing Chinese is left hardcoded |
 | `check-scripts.js` | `task check:scripts` | Several classic scripts share each page's global scope; a top-level redeclaration between them stops the later one loading, and `node --check` cannot see it |
-| `check-settings.js` | `task check:settings` | Exercises the settings store, the save-path fallback and the hotkey conflict rollback |
+| `check-settings.js` | `task check:settings` | Exercises the settings store, the save-path fallback and the hotkey conflict rollback — and saving a capture: straight into the folder under a name that never overwrites, falling back to the dialog when the folder is unwritable, or through a stand-in dialog that has to open where the last save went |
 | `check-clicks.js` | `task check:clicks` | Clicks the screenshot ✓ and the recording card's dropdowns with real mouse input, and works the settings window with real mouse and keyboard input: each change has to be saved as it is made, and a hotkey that is taken has to fall back to the old one. The previews use `element.click()`, which has no press before it, so anything that reacts to mousedown goes untested there |
 | `check-launch.js` | `task check:launch` | Starts Took every way it gets started: by Start with Windows or after an update it stays in the tray; by hand it opens the settings — and while it already runs, the running copy opens them rather than a capture, while the new one quits without starting up (its start-up would sweep the temp folder, taking the recording the running copy holds with it). Also flips a switch in the real settings window and checks settings.json follows, with no Save button. Uses a data folder, temp folder and hotkeys of its own, so a real Took is untouched |
 | `check-ocr.js` | `task check:ocr` | Each text-recognition step — resizing, finding the boxes, decoding, joining lines — against answers taken from RapidOCR itself; then every screenshot in `.ocr-samples/` against a `.txt` of what it says, with the error rate and time (`-- -v` prints what was read). The folder is not in git, as screenshots tend to show private things: drop in any that came out wrong. Plain Node, so CI runs the steps |

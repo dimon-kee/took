@@ -74,6 +74,26 @@ h2 {
   margin-left: -10px; /* line the radio dots up with the fields below */
 }
 
+/* Choices too long to sit side by side, one under the other. */
+.options.stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+/* The label lines up with the first of several stacked choices. */
+.row.top {
+  align-items: flex-start;
+}
+
+.row.top > label:first-child {
+  line-height: 32px;
+}
+
+.save-mode-row {
+  margin-top: 12px;
+}
+
 /* --- checkbox ------------------------------------------------------------- */
 
 .check {
@@ -120,9 +140,9 @@ h2 {
   transform: rotate(45deg);
 }
 
-/* --- language picker ----------------------------------------------------- */
+/* --- radio choices: language, how to save --------------------------------- */
 
-.lang {
+.radio {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -137,11 +157,11 @@ h2 {
   cursor: pointer;
 }
 
-.lang:hover {
+.radio:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.lang .dot {
+.radio .dot {
   position: relative;
   width: 15px;
   height: 15px;
@@ -150,12 +170,12 @@ h2 {
   flex: none;
 }
 
-.lang.is-on .dot {
+.radio.is-on .dot {
   border-color: #1677ff;
   background: #1677ff;
 }
 
-.lang.is-on .dot::after {
+.radio.is-on .dot::after {
   content: '';
   position: absolute;
   inset: 3.4px;

@@ -60,6 +60,9 @@ ipcMain.handle('overlay:fallback-shot', () => {
 // another program owns — here Ctrl+Alt+J — refused, with the old one kept.
 const TAKEN = 'CommandOrControl+Alt+J';
 const saves = [];
+// Set to refuse the next save with this message, as main does when the save
+// folder cannot be written to.
+let refuseNext = null;
 let effective = { ...DEFAULTS, shortcuts: { ...DEFAULTS.shortcuts } };
 let autoLaunch = true;
 ipcMain.handle('settings:load', () => ({
@@ -69,6 +72,11 @@ ipcMain.handle('settings:load', () => ({
 }));
 ipcMain.handle('settings:save', (event, next) => {
   saves.push(structuredClone(next));
+  if (refuseNext) {
+    const message = refuseNext;
+    refuseNext = null;
+    return { ok: false, message, settings: structuredClone(effective), autoLaunch };
+  }
   const conflicts = Object.keys(next.shortcuts).filter((k) => next.shortcuts[k] === TAKEN);
   if (conflicts.length) return { ok: false, conflicts, settings: structuredClone(effective), autoLaunch };
   const { autoLaunch: wanted, ...rest } = next;
@@ -217,6 +225,27 @@ async function settingsWindow() {
   const refused = await status();
   check('被占用的快捷键退回原来的', (await capture()) === 'Ctrl + Alt + K', await capture());
   check('并在底部说明', refused.warn && refused.text === T('settings.conflict', { names: T('settings.capture') }), refused.text);
+
+  // How to save: the choice saves at once, and the hint over the folder follows it.
+  await page.run(`document.getElementById('save-mode').scrollIntoView({ block: 'center' }); true`);
+  const hint = () => page.run(`document.getElementById('save-hint').textContent`);
+  check('默认直接保存，说明也这么写', (await hint()) === T('settings.saveDirectHint'), await hint());
+  await page.clickOn('[data-mode="ask"] span');
+  check('点「每次都问」马上保存', saves[saves.length - 1].saveMode === 'ask', saves[saves.length - 1].saveMode);
+  check('说明跟着换', (await hint()) === T('settings.saveAskHint'), await hint());
+  await page.clickOn('[data-mode="direct"] .dot');
+  check('点回「直接保存」也马上保存', saves[saves.length - 1].saveMode === 'direct', saves[saves.length - 1].saveMode);
+
+  // A refused save carried every setting; the window has to show all of what
+  // is still in effect, not just put the folder back.
+  refuseNext = 'That folder cannot be written to: offline';
+  await page.clickOn('[data-mode="ask"] span');
+  // Until the refusal is back, rather than a fixed wait a busy machine outruns.
+  for (let i = 0; i < 30 && !(await status()).warn; i++) await wait(100);
+  const shown = await page.run(`document.querySelector('#save-mode .is-on').dataset.mode`);
+  check('被拒的改动不留在窗口里', shown === 'direct' && (await hint()) === T('settings.saveDirectHint'), shown);
+  const why = await status();
+  check('并在底部说明原因', why.warn && why.text === 'That folder cannot be written to: offline', why.text);
 
   win.destroy();
 }

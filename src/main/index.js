@@ -27,6 +27,7 @@ const updater = require('./updater');
 const clips = require('./clips');
 const mp4 = require('./mp4');
 const settings = require('./settings');
+const { createSaver } = require('./saving');
 const { createOcr } = require('./ocr');
 const { safeHref } = require('../shared/links');
 const { pngFromDataURL, copyImage, copyFile, copyText } = require('./clipboard');
@@ -40,6 +41,12 @@ const { createTranslator, LANGUAGES } = require('../shared/i18n');
 function t(key, vars) {
   return createTranslator(settings.get().language)(key, vars);
 }
+
+const saver = createSaver({
+  settings,
+  showSaveDialog: (win, options) => dialog.showSaveDialog(win, options),
+  t,
+});
 const {
   createOverlayWindow,
   overlayAt,
@@ -536,20 +543,66 @@ ipcMain.handle('overlay:copy', async (event, dataURL) => {
   return true;
 });
 
+// The scrolling screenshot saves through here too.
 ipcMain.handle('overlay:save', async (event, dataURL) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: t('dialog.saveShot'),
-    defaultPath: path.join(settings.saveDir(), `${t('file.screenshot', { stamp: stamp() })}.png`),
-    filters: [{ name: t('dialog.png'), extensions: ['png'] }],
-  });
-
-  if (canceled || !filePath) return false;
-
-  fs.writeFileSync(filePath, nativeImage.createFromDataURL(dataURL).toPNG());
+  const win = event.sender.isDestroyed() ? null : BrowserWindow.fromWebContents(event.sender);
+  // Ctrl+S held down sends a save with every key repeat. Without a dialog in
+  // the way, each would be another file: only the first counts, and the rest
+  // arrive once the overlay is already gone.
+  if (!win || win.isDestroyed() || win.__tookSaving) return false;
+  win.__tookSaving = true;
+  let saved = false;
+  try {
+    saved = await saveShot(win, dataURL);
+  } finally {
+    win.__tookSaving = false;
+  }
+  if (!saved) return false;
   closeOverlays();
   return true;
 });
+
+/**
+ * Save a screenshot the way the settings ask. Saved without a dialog, a tray
+ * notice says where it went: the overlay closes the moment it has saved, so
+ * nothing else is left on screen to say so.
+ * @returns whether it was saved; if not, whatever asked keeps the screenshot
+ */
+async function saveShot(win, dataURL) {
+  let saved;
+  try {
+    saved = await saver.save(win, {
+      name: t('file.screenshot', { stamp: stamp() }),
+      ext: 'png',
+      title: t('dialog.saveShot'),
+      filter: t('dialog.png'),
+      source: pngFromDataURL(dataURL),
+    });
+  } catch (err) {
+    console.error('[took] 保存截图失败:', err);
+    await saveFailed(win, t('err.saveShotTitle'), err);
+    return false;
+  }
+  if (!saved) return false;
+
+  if (!saved.asked) {
+    // Windows cuts a notice off at 255 characters, so two whole paths would
+    // lose the last line first: the folder it went to is enough there.
+    const body = saved.movedFrom
+      ? t('notice.savedElsewhere', { dir: saved.movedFrom, fallback: path.dirname(saved.file) })
+      : t('notice.savedTo', { file: saved.file });
+    balloon(t('notice.shotSaved'), body, () => shell.showItemInFolder(saved.file));
+  }
+  return true;
+}
+
+/** Saving failed where the dialog said: say so over the window that asked. */
+async function saveFailed(win, title, err) {
+  const detail = String((err && err.message) || err);
+  // Parented, or it would open behind the overlay, which stays on top.
+  if (win && !win.isDestroyed()) await dialog.showMessageBox(win, { type: 'error', title, message: title, detail });
+  else dialog.showErrorBox(title, detail);
+}
 
 ipcMain.handle('overlay:pin', (event, { dataURL, rect }) => {
   const win = createPinWindow({
@@ -623,17 +676,7 @@ ipcMain.on('pin:set-opacity', (event, value) => {
   if (win && !win.isDestroyed()) win.setOpacity(value);
 });
 
-ipcMain.handle('pin:save', async (event, dataURL) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: t('dialog.saveShot'),
-    defaultPath: path.join(settings.saveDir(), `${t('file.screenshot', { stamp: stamp() })}.png`),
-    filters: [{ name: t('dialog.png'), extensions: ['png'] }],
-  });
-  if (canceled || !filePath) return false;
-  fs.writeFileSync(filePath, nativeImage.createFromDataURL(dataURL).toPNG());
-  return true;
-});
+ipcMain.handle('pin:save', (event, dataURL) => saveShot(BrowserWindow.fromWebContents(event.sender), dataURL));
 
 // ---------------------------------------------------------------------------
 // IPC — recording
@@ -796,16 +839,24 @@ ipcMain.handle('editor:save', async (event) => {
   if (!lastClip) return false;
   const win = BrowserWindow.fromWebContents(event.sender);
 
-  const { canceled, filePath } = await dialog.showSaveDialog(win, {
-    title: t('dialog.saveRecording'),
-    defaultPath: path.join(settings.saveDir(), `${t('file.recording', { stamp: stamp() })}.${lastClip.ext}`),
-    filters: [{ name: describeFormat(lastClip.ext), extensions: [lastClip.ext] }],
-  });
+  let saved;
+  try {
+    saved = await saver.save(win, {
+      name: t('file.recording', { stamp: stamp() }),
+      ext: lastClip.ext,
+      title: t('dialog.saveRecording'),
+      filter: describeFormat(lastClip.ext),
+      source: { copyFrom: lastClip.file },
+    });
+  } catch (err) {
+    console.error('[took] 保存录屏失败:', err);
+    await saveFailed(win, t('err.saveRecordingTitle'), err);
+    return false;
+  }
+  if (!saved) return false;
 
-  if (canceled || !filePath) return false;
-
-  fs.copyFileSync(lastClip.file, filePath);
-  shell.showItemInFolder(filePath);
+  // Asked or not, this shows where it went; the window says "Saved".
+  shell.showItemInFolder(saved.file);
   return true;
 });
 
@@ -919,7 +970,9 @@ ipcMain.handle('settings:save', (event, next) => {
   const previous = settings.get();
   const effective = () => ({ settings: settings.get(), autoLaunch: autoLaunch.enabled() });
 
-  if (next.saveDir) {
+  // The window sends every setting each time. Only a folder that changed is
+  // checked: one that has gone offline since must not block every other change.
+  if (next.saveDir && next.saveDir !== previous.saveDir) {
     const check = settings.checkWritable(next.saveDir);
     if (!check.ok) return { ok: false, message: t('settings.dirNotWritable', { message: check.message }), ...effective() };
   }

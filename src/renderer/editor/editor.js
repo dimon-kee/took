@@ -118,9 +118,17 @@ const T = (key, vars) => window.i18n.t(key, vars);
   }
 
   function wireActions() {
-    document.getElementById('btn-save').addEventListener('click', async () => {
-      const saved = await window.took.save();
-      if (saved) toast(T('editor.saved'));
+    const saveBtn = document.getElementById('btn-save');
+    saveBtn.addEventListener('click', async (e) => {
+      // Saved straight into the folder, a double click would be two copies:
+      // its second click is dropped, and so is any click while a save runs.
+      if (e.detail > 1) return;
+      saveBtn.disabled = true;
+      try {
+        if (await window.took.save()) toast(T('editor.saved'));
+      } finally {
+        saveBtn.disabled = false;
+      }
     });
 
     document.getElementById('btn-copy').addEventListener('click', async () => {

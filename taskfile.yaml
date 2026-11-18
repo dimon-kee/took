@@ -84,7 +84,7 @@ tasks:
     aliases: [p]
 
   check:settings:
-    desc: Exercise the settings store, save-path fallback and hotkey conflict rollback
+    desc: Exercise the settings store, save-path fallback, saving straight or through the dialog, and hotkey conflict rollback
     cmds:
       - cmd: npx electron tools/check-settings.js
 
