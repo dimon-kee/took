@@ -153,6 +153,10 @@
 
   window.took.onInit(async (payload) => {
     S.mode = payload.mode;
+    // 录屏 options already changed on another display while this one loaded.
+    // Taken before the await below, so a newer change arriving meanwhile
+    // (overlay:rec) is not overwritten by this older one.
+    if (payload.rec) Object.assign(S.rec, payload.rec);
     S.shot = payload.shot;
     S.viewW = payload.shot.bounds.width;
     S.viewH = payload.shot.bounds.height;
@@ -170,6 +174,7 @@
       state: S.rec,
       onStart: () => doConfirm(),
       onChange: () => {
+        window.took.setRec({ ...S.rec });
         RecordPanel.place(recPanel, S.sel, S.viewW, S.viewH);
         syncWebcam();
       },
@@ -262,6 +267,14 @@
     S.tool = null;
     syncToolbar();
     syncModeBar();
+  });
+
+  // The 录屏 card's options changed on another display. Taken in place — the
+  // card holds S.rec itself — and nothing else: this display has no region,
+  // so its webcam stays as it is until a click brings the selection here.
+  window.took.onRec((rec) => {
+    Object.assign(S.rec, rec);
+    if (recPanel) RecordPanel.sync(recPanel);
   });
 
   // Where the pointer is during a scrolling screenshot, streamed from main.

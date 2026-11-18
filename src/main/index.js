@@ -27,6 +27,7 @@ const updater = require('./updater');
 const clips = require('./clips');
 const mp4 = require('./mp4');
 const settings = require('./settings');
+const { cleanRecOptions, webcamStays } = require('./overlaysync');
 const { createSaver } = require('./saving');
 const { createOcr } = require('./ocr');
 const { safeHref } = require('../shared/links');
@@ -116,7 +117,14 @@ let capturing = false;
  */
 let overlayMode = 'capture';
 const OVERLAY_MODES = new Set(['capture', 'long', 'record', 'text']);
+/**
+ * The 录屏 card's options as last changed on any display, or null while they
+ * are still the defaults. One choice for every display, like the mode.
+ */
+let overlayRec = null;
 let webcamDeviceId = null;
+/** The overlay whose selection the webcam bubble was placed for (webContents id). */
+let webcamOwner = null;
 let recordSettings = null;
 let stopCursor = null;
 /** Last finished recording, parked in temp for the preview window. */
@@ -308,6 +316,7 @@ function openOverlays(mode) {
   if (capturing || overlayWins.length) return;
   capturing = true;
   overlayMode = mode;
+  overlayRec = null;
 
   try {
     const shots = describeDisplays();
@@ -337,7 +346,7 @@ function openOverlays(mode) {
       win.__tookRevealed = false;
 
       const init = () => {
-        win.webContents.send('overlay:init', { mode: overlayMode, shot, cursor, isPrimary });
+        win.webContents.send('overlay:init', { mode: overlayMode, rec: overlayRec, shot, cursor, isPrimary });
         // Safety net: if the renderer never reports back, show it anyway
         // rather than leaving an invisible fullscreen window swallowing input.
         setTimeout(() => revealOverlay(win), 1500);
@@ -526,6 +535,22 @@ ipcMain.on('overlay:mode', (event, mode) => {
   });
 });
 
+/**
+ * The 录屏 card's options changed on one display. The others take them too,
+ * so a click on another screen starts from the same format, sound, camera
+ * and cursor choices.
+ */
+ipcMain.on('overlay:rec', (event, rec) => {
+  const clean = cleanRecOptions(rec);
+  if (!clean) return;
+  overlayRec = clean;
+  overlayWins.forEach((win) => {
+    if (!win.isDestroyed() && win.webContents.id !== event.sender.id) {
+      win.webContents.send('overlay:rec', clean);
+    }
+  });
+});
+
 ipcMain.on('overlay:cancel', () => {
   closeWebcam(); // the camera preview belongs to this session only
   closeOverlays();
@@ -691,16 +716,22 @@ ipcMain.handle('overlay:webcam', (event, { on, deviceId, bounds }) => {
     return false;
   }
 
+  const request = { owner: event.sender.id, deviceId: deviceId || null };
   if (webcamWin && !webcamWin.isDestroyed()) {
-    if (webcamDeviceId === deviceId) return true;
-    closeWebcam(); // device changed; rebuild against the new one
+    if (webcamStays({ owner: webcamOwner, deviceId: webcamDeviceId }, request)) return true;
+    // Another camera, or the selection moved to another display: rebuild it
+    // there rather than move it — a window dragged between displays of
+    // different scaling comes out the wrong size.
+    closeWebcam();
   }
 
-  webcamDeviceId = deviceId || null;
+  webcamDeviceId = request.deviceId;
+  webcamOwner = request.owner;
   webcamWin = createWebcamWindow({ deviceId, bounds });
   webcamWin.once('closed', () => {
     webcamWin = null;
     webcamDeviceId = null;
+    webcamOwner = null;
   });
   return true;
 });
@@ -911,6 +942,7 @@ function closeWebcam() {
   if (webcamWin && !webcamWin.isDestroyed()) webcamWin.destroy();
   webcamWin = null;
   webcamDeviceId = null;
+  webcamOwner = null;
 }
 
 function teardownRecording() {
