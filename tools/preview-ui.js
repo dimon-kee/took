@@ -42,9 +42,15 @@ const W = 1280;
 const H = 720;
 
 app.whenReady().then(async () => {
+  // Fetched on postinstall and kept out of git, so a fresh worktree has none,
+  // and a postinstall that went offline leaves the folder empty.
+  const models = path.join(__dirname, '..', 'assets', 'ocr');
+  if (!fs.existsSync(models) || !fs.readdirSync(models).some((f) => f.endsWith('.onnx'))) {
+    throw new Error(`没有文字识别模型 ${models}\n  跑 node tools/fetch-ocr-models.js 下载（npm install 也会做），或者从主目录复制 assets/ 过来`);
+  }
   fs.mkdirSync(OUT, { recursive: true });
   ocr = createOcr({
-    modelsDir: path.join(__dirname, '..', 'assets', 'ocr'),
+    modelsDir: models,
     idleMs: 60000,
     timeoutMs: 30000,
     threads: 4,
@@ -242,6 +248,10 @@ app.whenReady().then(async () => {
   ocr.stop();
   console.log(`\n预览图写在: ${OUT}`);
   app.exit(0);
+}).catch((err) => {
+  // Left alone, the window keeps Electron running and the task hangs silently.
+  console.error(`\n预览失败: ${err.stack || err}`);
+  app.exit(1);
 });
 
 /** Run `script` in the overlay, wait for `settled()` if given, then capture. */
