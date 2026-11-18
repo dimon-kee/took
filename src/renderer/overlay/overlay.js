@@ -251,6 +251,19 @@
     resetSelection();
   }
 
+  // The mode was picked on another display. This one only follows: it holds
+  // no selection, so there is nothing to read or film, and the webcam is the
+  // other display's to show or hide.
+  window.took.onMode((mode) => {
+    if (mode === S.mode) return;
+    S.mode = mode;
+    // Still setting up: init draws everything from S.mode once it is done.
+    if (!S.ready) return;
+    S.tool = null;
+    syncToolbar();
+    syncModeBar();
+  });
+
   // Where the pointer is during a scrolling screenshot, streamed from main.
   window.took.onPointer((p) => {
     if (longShot) LongShot.pointer(longShot, p);
@@ -665,6 +678,7 @@
     if (mode === S.mode) return;
     S.mode = mode;
     S.tool = null;
+    window.took.setMode(mode);
     syncToolbar();
     syncModeBar();
     syncWebcam();
@@ -904,14 +918,21 @@
     const waBottom = wa.y + wa.height;
     const stackH = th + sh; // sh already carries its 6px gap
 
+    // The toolbar and the subbar move as one stack: `top` is the stack's top
+    // edge, and `subUp` puts the subbar above the toolbar instead of below.
+    // Clamping each bar on its own pushed both against the taskbar, one on
+    // top of the other, and the subbar hid the tools.
     let left;
     let top;
-    let stackDown = true;
+    let subUp = false;
 
     if (S.toolbarPos) {
       left = S.toolbarPos.x;
       top = S.toolbarPos.y;
-      if (top + stackH > waBottom - 6) stackDown = false;
+      if (top + stackH > waBottom - 6) {
+        subUp = true;
+        top -= sh;
+      }
     } else {
       const below = y + h + 8;
       const above = y - stackH - 8;
@@ -920,28 +941,28 @@
         top = below;
         left = x + w - tw;
       } else if (above >= wa.y + 6) {
-        top = above + sh; // toolbar sits under the subbar when flipped up
-        stackDown = false;
+        top = above;
+        subUp = true; // the toolbar stays against the selection
         left = x + w - tw;
       } else {
         // No room on either side — tuck the stack into the selection's own
-        // bottom-right corner, which is where a full-screen grab lands.
-        top = y + h - stackH - 10;
+        // bottom-right corner, which is where a full-screen grab lands. The
+        // subbar opens upwards so the toolbar does not jump when it appears.
+        top = Math.min(y + h, waBottom) - stackH - 10;
+        subUp = true;
         left = x + w - tw - 10;
       }
     }
 
-    top = clamp(top, wa.y + 6, Math.max(wa.y + 6, waBottom - th - 6));
+    top = clamp(top, wa.y + 6, Math.max(wa.y + 6, waBottom - stackH - 6));
     left = clamp(left, wa.x + 6, wa.x + wa.width - tw - 6);
 
-    els.toolbar.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+    const barTop = subUp ? top + sh : top;
+    els.toolbar.style.transform = `translate(${Math.round(left)}px, ${Math.round(barTop)}px)`;
 
     if (sh) {
-      const subH = els.subbar.offsetHeight;
-      const subTop = stackDown ? top + th + 6 : top - subH - 6;
-      els.subbar.style.transform = `translate(${Math.round(left)}px, ${Math.round(
-        clamp(subTop, wa.y + 6, waBottom - subH - 6)
-      )}px)`;
+      const subTop = subUp ? top : top + th + 6;
+      els.subbar.style.transform = `translate(${Math.round(left)}px, ${Math.round(subTop)}px)`;
     }
   }
 
@@ -965,10 +986,12 @@
     // takes clicks, and that stops them before they get here.
     if (e.button !== 0 || !S.ready || S.phase === 'long') return;
     if (!S.active) {
-      // A click on a non-owning display restarts the selection there.
+      // A click on a non-owning display restarts the selection there, framed
+      // whole like the display that opened: a bare click grabs all of it.
       S.active = true;
       window.took.claim();
       syncModeBar();
+      preselectFullScreen();
     }
 
     const p = point(e);
@@ -1014,10 +1037,13 @@
       return;
     }
 
-    // Outside the box with no tool: draw a fresh selection.
+    // Outside the box with no tool: start over. A drag draws a fresh
+    // selection; a bare click grabs the full screen. Until the pointer really
+    // travels the old box stays as it is — flashing the whole display bright
+    // on every press would be noise before a drag.
     S.phase = 'idle';
     S.toolbarPos = null;
-    S.drag = { kind: 'select', ox: p.x, oy: p.y, moved: false };
+    S.drag = { kind: 'select', ox: p.x, oy: p.y, moved: false, hold: true };
     hideChrome();
     markDirty('mask', 'live');
   });
@@ -1045,10 +1071,10 @@
       case 'select': {
         if (Math.abs(p.x - d.ox) > CLICK_SLOP || Math.abs(p.y - d.oy) > CLICK_SLOP) d.moved = true;
 
-        // Hold the full-screen default until the pointer really travels —
-        // otherwise a shaky click collapses it to a speck and the screen
-        // flashes dim on the way back.
-        if (!d.moved && S.preselect) {
+        // Hold the full-screen default, or the box a press outside it left,
+        // until the pointer really travels — otherwise a shaky click
+        // collapses it to a speck and the screen flashes dim on the way back.
+        if (!d.moved && (S.preselect || d.hold)) {
           drawMagnifier();
           break;
         }
@@ -1173,7 +1199,10 @@
     layoutBars();
     syncWebcam();
     setCursorStyle();
-    markDirty('live');
+    // A bare click turns the selection into the whole display without moving
+    // the pointer, so nothing has redrawn the dimming or the annotations for
+    // it yet.
+    markDirty('mask', 'shapes', 'live');
     if (S.mode === 'text') runOcr();
   }
 

@@ -215,7 +215,7 @@ Took 平时待在系统托盘里。按下快捷键会把整个屏幕冻住,顶�
 
 ## 卸载
 
-照常在 Windows 设置 → 应用 里卸载。Took 在这台机器上留的东西都会删掉:程序和快捷方式、`%APPDATA%Took`(设置和缓存)、`%LOCALAPPDATA%	ook-updater` 里的更新缓存、开机自启、还在临时目录里等着的录屏。`图片Took` 只在它是空的时候才删 —— 你的截图不会动。
+照常在 Windows 设置 → 应用 里卸载。Took 在这台机器上留的东西都会删掉:程序和快捷方式、`%APPDATA%\Took`(设置和缓存)、`%LOCALAPPDATA%\took-updater` 里的更新缓存、开机自启、还在临时目录里等着的录屏。`图片\Took` 只在它是空的时候才删 —— 你的截图不会动。
 
 更新不是卸载:它只换掉程序本身,设置和开机自启都保留。
 
@@ -289,7 +289,7 @@ src/
 
 **更新来自 GitHub Releases**,用 electron-updater。electron-builder 根据 `package.json` 里的 `publish` 往安装版里写 `resources/app-update.yml`,CI 在每次发布时附上 `latest.yml`(版本、文件名、SHA-512)和安装包的 blockmap —— 所以下载下来会先校验才运行,之后的更新也只下载变了的块。`task check:update` 用一个本地的假 GitHub 把更新流程跑一遍;发布之后,`task check:update -- --live` 会下载真正的最新发布,拿它的 `latest.yml` 核对。
 
-**卸载不留东西**。electron-builder 自带的卸载程序会删程序本身,开了 `deleteAppDataOnUninstall` 还会删 `%APPDATA%Took` —— 但应用放在别处的东西它不管。`build/installer.nsh` 补上剩下的:更新缓存、开机自启、暂存的录屏、空的保存目录,更新时这些一概不动。`task check:install` 会真的安装、从旧版本更新、再卸载,然后确认什么都没留下;中间要动到你的东西都会先备份、再放回去。
+**卸载不留东西**。electron-builder 自带的卸载程序会删程序本身,开了 `deleteAppDataOnUninstall` 还会删 `%APPDATA%\Took` —— 但应用放在别处的东西它不管。`build/installer.nsh` 补上剩下的:更新缓存、开机自启、暂存的录屏、空的保存目录,更新时这些一概不动。`task check:install` 会真的安装、从旧版本更新、再卸载,然后确认什么都没留下;中间要动到你的东西都会先备份、再放回去。
 
 **覆盖层是工具窗口,长截图时还会退出截屏画面**。Chromium(所有浏览器、所有 Electron 应用)会在它认为窗口被完全挡住时停止绘制,而一个置顶的全屏窗口就算"挡住" —— 除非它是工具窗口;不然正在滚的那个网页会直接冻住。长截图期间覆盖层还会被排除在屏幕捕获之外(`setContentProtection`),所以变暗层和面板永远不会进到画面里;并且只在选区里放鼠标穿过去。
 
