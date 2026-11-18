@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld('took', {
   /** The pointer is on this display now: it takes the keyboard. */
   onTakeOver: (fn) => ipcRenderer.on('overlay:take-over', (_e, cursor) => fn(cursor)),
 
+  /** The user picked a mode here: the other displays follow. */
+  setMode: (mode) => ipcRenderer.send('overlay:mode', mode),
+  /** The user picked a mode on another display. */
+  onMode: (fn) => ipcRenderer.on('overlay:mode', (_e, mode) => fn(mode)),
+
   cancel: () => ipcRenderer.send('overlay:cancel'),
 
   copy: (dataURL) => ipcRenderer.invoke('overlay:copy', dataURL),

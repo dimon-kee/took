@@ -41,6 +41,9 @@ const OUT = process.argv[2] || path.join(app.getPath('temp'), 'took-preview');
 const W = 1280;
 const H = 720;
 
+/** States whose readout flagged something: a bar off screen or overlapping, the dimming wrong. */
+const flagged = [];
+
 app.whenReady().then(async () => {
   // Fetched on postinstall and kept out of git, so a fresh worktree has none,
   // and a postinstall that went offline leaves the folder empty.
@@ -122,7 +125,15 @@ app.whenReady().then(async () => {
     fire('mouseup', 421, 301);
   `);
 
+  // The whole display reaches under the taskbar: the colour bar opens above
+  // the toolbar, both clear of the taskbar and of each other.
+  await shoot(win, 'a2b-fullscreen-subbar', `
+    click('rect');
+  `);
+
+  // The first right-click puts the rectangle tool down, the second the frame.
   await shoot(win, 'a3-back-to-idle', `
+    menu(420, 300);
     menu(420, 300);
     fire('mousemove', 420, 300);
   `);
@@ -245,8 +256,39 @@ app.whenReady().then(async () => {
     mode('capture');
   `);
 
+  // Pressed outside the region with a little jitter: the region stays as it
+  // was — no flash of the whole display, no speck — until the pointer travels.
+  await shoot(win, 's1-press-outside-holds', `
+    fire('mousedown', 1100, 200);
+    fire('mousemove', 1102, 201);
+  `);
+
+  // Let go without travelling: that click takes the whole display, all of it
+  // lit, not just the region that was there before.
+  await shoot(win, 's2-click-outside-fullscreen', `
+    fire('mouseup', 1102, 201);
+  `);
+
+  // Ctrl+A over a drawn region takes the whole display, lit the same way.
+  // The right-click drops the full-screen frame, so the drag draws anew.
+  await shoot(win, 't-ctrl-a-fullscreen', `
+    menu(420, 300);
+    fire('mousedown', 1100, 200);
+    fire('mousemove', 1000, 150);
+    fire('mousemove', 700, 120);
+    fire('mouseup', 700, 120);
+    requestAnimationFrame(() => requestAnimationFrame(() => document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true })
+    )));
+  `);
+
   ocr.stop();
   console.log(`\n预览图写在: ${OUT}`);
+  if (flagged.length) {
+    console.log(`有 ${flagged.length} 个状态不对: ${flagged.join(', ')}`);
+    app.exit(1);
+    return;
+  }
   app.exit(0);
 }).catch((err) => {
   // Left alone, the window keeps Electron running and the task hangs silently.
@@ -283,12 +325,42 @@ async function shoot(win, name, script, settled) {
       const d = window.__tookDebug ? window.__tookDebug() : {};
       return {
         tool: active ? active.dataset.id : null,
+        sel: d.sel ? Math.round(d.sel.w) + 'x' + Math.round(d.sel.h) : '无',
         shapes: d.shapes,
         mode: d.mode,
         ocr: d.ocr && d.mode === 'text' ? d.ocr.state + ' ' + JSON.stringify(d.ocr.text) : null,
         bar: !document.getElementById('modebar').classList.contains('hidden'),
         toolbar: describeBar(document.getElementById('toolbar')),
+        subbar: document.getElementById('subbar').classList.contains('hidden')
+          ? null
+          : describeBar(document.getElementById('subbar')) + (barsOverlap() ? ' 压住工具栏!' : ''),
+        maskWrong: maskMismatches(d.sel),
       };
+
+      function barsOverlap() {
+        const a = document.getElementById('toolbar').getBoundingClientRect();
+        const b = document.getElementById('subbar').getBoundingClientRect();
+        return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      }
+
+      // The dimming should cover exactly what is outside the selection. Count
+      // the points on a coarse grid where it does not.
+      function maskMismatches(sel) {
+        const c = document.getElementById('mask');
+        const g = c.getContext('2d');
+        const r = c.width / window.innerWidth;
+        let wrong = 0;
+        for (let i = 0; i < 6; i++) {
+          for (let j = 0; j < 6; j++) {
+            const x = ((i + 0.5) * window.innerWidth) / 6;
+            const y = ((j + 0.5) * window.innerHeight) / 6;
+            const inside = Boolean(sel) && x >= sel.x && x < sel.x + sel.w && y >= sel.y && y < sel.y + sel.h;
+            const dim = g.getImageData(Math.floor(x * r), Math.floor(y * r), 1, 1).data[3] > 0;
+            if (dim === inside) wrong++;
+          }
+        }
+        return wrong;
+      }
 
       function describeBar(el) {
         if (el.classList.contains('hidden')) return '隐藏';
@@ -302,11 +374,13 @@ async function shoot(win, name, script, settled) {
       }
     })()`
   );
-  console.log(
-    `      mode=${dump.mode} tool=${dump.tool} shapes=${dump.shapes}` +
-      ` modebar=${dump.bar ? '显示' : '隐藏'} 工具栏=${dump.toolbar}` +
-      (dump.ocr ? `\n      文字=${dump.ocr}` : '')
-  );
+  const line =
+    `      mode=${dump.mode} 选区=${dump.sel} tool=${dump.tool} shapes=${dump.shapes}` +
+    ` modebar=${dump.bar ? '显示' : '隐藏'} 工具栏=${dump.toolbar}` +
+    (dump.subbar ? ` 颜色栏=${dump.subbar}` : '') +
+    (dump.maskWrong ? ` 遮罩与选区不符! (${dump.maskWrong} 处)` : '');
+  if (line.includes('!')) flagged.push(name);
+  console.log(line + (dump.ocr ? `\n      文字=${dump.ocr}` : ''));
 
   // A change that came back over IPC — a recognition result — can sit
   // unpainted while nothing else is moving; ask for a fresh frame first.

@@ -103,6 +103,12 @@ app.on('web-contents-created', (_e, contents) => {
 /** @type {Set<BrowserWindow>} */ const pinWins = new Set();
 
 let capturing = false;
+/**
+ * The mode the open overlays are in. It is one choice for every display: an
+ * overlay still loading when the user switches is told the new one at init.
+ */
+let overlayMode = 'capture';
+const OVERLAY_MODES = new Set(['capture', 'long', 'record', 'text']);
 let webcamDeviceId = null;
 let recordSettings = null;
 let stopCursor = null;
@@ -294,6 +300,7 @@ function startTextCapture() {
 function openOverlays(mode) {
   if (capturing || overlayWins.length) return;
   capturing = true;
+  overlayMode = mode;
 
   try {
     const shots = describeDisplays();
@@ -323,7 +330,7 @@ function openOverlays(mode) {
       win.__tookRevealed = false;
 
       const init = () => {
-        win.webContents.send('overlay:init', { mode, shot, cursor, isPrimary });
+        win.webContents.send('overlay:init', { mode: overlayMode, shot, cursor, isPrimary });
         // Safety net: if the renderer never reports back, show it anyway
         // rather than leaving an invisible fullscreen window swallowing input.
         setTimeout(() => revealOverlay(win), 1500);
@@ -496,6 +503,20 @@ ipcMain.on('overlay:release', () => {
   const b = win.__tookBounds;
   win.webContents.send('overlay:take-over', { x: cursor.x - b.x, y: cursor.y - b.y });
   win.focus();
+});
+
+/**
+ * The user picked another mode on one display. Every display follows, so
+ * the pointer can carry 录屏 or 文字 across to another screen.
+ */
+ipcMain.on('overlay:mode', (event, mode) => {
+  if (!OVERLAY_MODES.has(mode)) return;
+  overlayMode = mode;
+  overlayWins.forEach((win) => {
+    if (!win.isDestroyed() && win.webContents.id !== event.sender.id) {
+      win.webContents.send('overlay:mode', mode);
+    }
+  });
 });
 
 ipcMain.on('overlay:cancel', () => {
