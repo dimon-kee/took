@@ -17,6 +17,7 @@
 const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const koffi = require('koffi');
 const { createOverlayWindow, overlayAt } = require('../src/main/windows');
+const { cleanRecOptions, webcamStays } = require('../src/main/overlaysync');
 
 const user32 = koffi.load('user32.dll');
 koffi.struct('POINT', { x: 'int32', y: 'int32' });
@@ -82,12 +83,38 @@ ipcMain.on('overlay:mode', (event, mode) => {
     }
   });
 });
+// As src/main/index.js: the 录屏 card's options reach the others too, through
+// the same check, so a set the overlay really sends must get past it.
+ipcMain.on('overlay:rec', (event, rec) => {
+  const clean = cleanRecOptions(rec);
+  if (!clean) {
+    check('录屏选项能通过主进程的检查', false, JSON.stringify(rec));
+    return;
+  }
+  overlays.forEach((win) => {
+    if (!win.isDestroyed() && win.webContents.id !== event.sender.id) {
+      win.webContents.send('overlay:rec', clean);
+    }
+  });
+});
 ipcMain.on('overlay:cancel', () => {});
 ipcMain.handle('overlay:source-id', () => null);
 ipcMain.handle('overlay:fallback-shot', () => null);
-['overlay:webcam', 'overlay:copy', 'overlay:save', 'overlay:pin', 'overlay:copy-text', 'overlay:record'].forEach(
+['overlay:copy', 'overlay:save', 'overlay:pin', 'overlay:copy-text', 'overlay:record'].forEach(
   (channel) => ipcMain.handle(channel, () => false)
 );
+// As src/main/index.js, with the same keep-or-rebuild rule. No window is
+// opened: `bubble` only records which overlay it was put up for, and where.
+let bubble = null;
+ipcMain.handle('overlay:webcam', (event, { on, deviceId, bounds }) => {
+  if (!on) {
+    bubble = null;
+    return false;
+  }
+  const request = { owner: event.sender.id, deviceId: deviceId || null };
+  if (!webcamStays(bubble, request)) bubble = { ...request, bounds };
+  return true;
+});
 
 app.whenReady().then(async () => {
   const home = {};
@@ -106,6 +133,28 @@ app.whenReady().then(async () => {
 });
 
 async function run() {
+  console.log('主进程只转发完整、类型对的录屏选项');
+  const good = {
+    format: 'gif', speaker: true, mic: false, camera: true, cursor: true,
+    micId: null, cameraId: 'cam-1', mouseHighlight: true, clickEffect: false,
+  };
+  const passed = cleanRecOptions({ ...good, extra: 'x' });
+  check(
+    '完整的一组原样通过，多出来的键去掉',
+    passed && Object.keys(passed).length === Object.keys(good).length && Object.keys(good).every((k) => passed[k] === good[k]),
+    JSON.stringify(passed)
+  );
+  const broken = [null, 'gif', { ...good, format: 'avi' }, { ...good, mic: 'yes' }, { ...good, micId: 5 }, { ...good, cursor: undefined }];
+  check('缺键或类型不对的一律不转发', broken.every((r) => cleanRecOptions(r) === null));
+  const cam = { owner: 1, deviceId: 'cam-1' };
+  check('同一块屏幕、同一个摄像头：小窗留着不动', webcamStays(cam, { owner: 1, deviceId: 'cam-1' }));
+  check(
+    '换了屏幕、换了摄像头或还没有小窗：重开',
+    !webcamStays(cam, { owner: 2, deviceId: 'cam-1' }) &&
+      !webcamStays(cam, { owner: 1, deviceId: 'cam-2' }) &&
+      !webcamStays(null, cam)
+  );
+
   const display = screen.getPrimaryDisplay();
   const wa = display.workArea;
   const left = Math.round(wa.x + wa.width / 2 - SIZE.width);
@@ -205,10 +254,70 @@ async function run() {
   check('屏幕 1 交出选区', !(await toolbarShown(a)));
   const dimmed = await dimmedCorners(b);
   check('整块屏幕 2 都亮着', dimmed === 0, dimmed ? `还有 ${dimmed} 个角盖着遮罩` : '');
+
+  console.log('\n在屏幕 2 的录屏卡片上改成 GIF、开鼠标效果和摄像头，再到屏幕 1 单击');
+  await pickMode(b, 'record');
+  let cb = await recCard(b);
+  check('屏幕 2 的录屏卡片出来', cb.shown);
+  check(
+    '一开始是 MP4、鼠标效果和摄像头关着',
+    cb.format === 'mp4' && !cb.cursor && !cb.camera,
+    `${cb.format}，鼠标效果${cb.cursor ? '开' : '关'}，摄像头${cb.camera ? '开' : '关'}`
+  );
+  // Clicked the way the user would; each change reaches the other display.
+  for (const target of ['.rec-radio[data-format="gif"]', '.dev[data-key="cursor"] .dev-icon', '.dev[data-key="camera"] .dev-icon']) {
+    await b.webContents.executeJavaScript(`document.querySelector('${target}').click()`);
+  }
+  await wait(150);
+  cb = await recCard(b);
+  check(
+    '屏幕 2 改好了',
+    cb.format === 'gif' && cb.cursor && cb.camera,
+    `${cb.format}，鼠标效果${cb.cursor ? '开' : '关'}，摄像头${cb.camera ? '开' : '关'}`
+  );
+  check('摄像头小窗开在屏幕 2 的选区里', bubbleOn(1), describeBubble());
+  await at(0, SIZE.width - 80);
+  mouse_event(MOUSE_LEFTDOWN, 0, 0, 0, 0);
+  mouse_event(MOUSE_LEFTUP, 0, 0, 0, 0);
+  await wait(200);
+  const ca = await recCard(a);
+  check('屏幕 1 选好了，录屏卡片出来', ca.shown);
+  check('屏幕 1 的卡片也是 GIF', ca.format === 'gif', ca.format);
+  check('屏幕 1 的鼠标效果也开着', ca.cursor);
+  check('屏幕 1 的摄像头也开着', ca.camera);
+  // Left behind on screen 2 it would sit outside what gets filmed.
+  check('摄像头小窗跟到屏幕 1 的选区里', bubbleOn(0), describeBubble());
+
+  /** The bubble is up for display i's overlay, placed inside that display. */
+  function bubbleOn(i) {
+    if (!bubble || bubble.owner !== overlays[i].webContents.id) return false;
+    const d = shots[i].bounds;
+    return bubble.bounds.x >= d.x && bubble.bounds.x + bubble.bounds.width <= d.x + d.width;
+  }
+  function describeBubble() {
+    if (!bubble) return '没有小窗';
+    const i = overlays.findIndex((w) => w.webContents.id === bubble.owner);
+    return `属于屏幕 ${i + 1}，x=${bubble.bounds.x}`;
+  }
 }
 
 function toolbarShown(win) {
   return win.webContents.executeJavaScript(`!document.getElementById('toolbar').classList.contains('hidden')`);
+}
+
+/** Whether the 录屏 card is up, the format it shows picked, and which of its cursor and camera switches are on. */
+function recCard(win) {
+  return win.webContents.executeJavaScript(`(() => {
+    const card = document.querySelector('.recpanel');
+    const picked = card.querySelector('.rec-radio.is-on');
+    const on = (key) => !card.querySelector('.dev[data-key="' + key + '"]').classList.contains('off');
+    return {
+      shown: !card.classList.contains('hidden'),
+      format: picked ? picked.dataset.format : null,
+      cursor: on('cursor'),
+      camera: on('camera'),
+    };
+  })()`);
 }
 
 /** Click a mode on the display's mode bar, as the user would. */

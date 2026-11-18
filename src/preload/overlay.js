@@ -30,6 +30,11 @@ contextBridge.exposeInMainWorld('took', {
   /** The user picked a mode on another display. */
   onMode: (fn) => ipcRenderer.on('overlay:mode', (_e, mode) => fn(mode)),
 
+  /** The 录屏 card's options changed here: the other displays take them too. */
+  setRec: (rec) => ipcRenderer.send('overlay:rec', rec),
+  /** The 录屏 card's options changed on another display. */
+  onRec: (fn) => ipcRenderer.on('overlay:rec', (_e, rec) => fn(rec)),
+
   cancel: () => ipcRenderer.send('overlay:cancel'),
 
   copy: (dataURL) => ipcRenderer.invoke('overlay:copy', dataURL),
